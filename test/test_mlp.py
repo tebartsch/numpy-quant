@@ -104,7 +104,7 @@ class TestMlp(unittest.TestCase):
             -----------------+---------------------+--------------------
             /fc2/Gemm        | /relu/Relu_output_0 | /fc2/Gemm_output_0 
                              | fc2.weight          |                    
-                       d      | fc2.bias            |                    
+                             | fc2.bias            |                    
             -----------------+---------------------+--------------------
             /sigmoid/Sigmoid | /fc2/Gemm_output_0  | output             
             -----------------+---------------------+--------------------

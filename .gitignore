@@ -1,3 +1,4 @@
 .idea
 venv
 *.onnx
+__pycache__
