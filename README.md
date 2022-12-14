@@ -4,16 +4,18 @@ Evaluate ONNX-model quantization with arbitrary bit-width.
 
 **Work In Progress**
 
-Tinyquant aims to
+`tinyquant` aims to
  
- - consist of <500 lines of code
- - evaluate neural network quantization methods
+ - evaluate neural network quantization methods for arbitrary bit-widths
  - support importing ONNX models
- - support arbitrary bit-width quantization
- - be able to quantize common CNNs, transformers and graph neural networks
+ - be able to quantize common
+   - CNNs
+   - transformers
+   - graph neural networks
+ - consist of <500 lines of code
 
 ## Installation
 
 ```bash
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-``
+```

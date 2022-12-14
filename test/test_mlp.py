@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import unittest
 import pathlib
+import textwrap
 import numpy as np
 import onnx
 from sklearn.datasets import make_circles
@@ -10,6 +11,7 @@ from torch.utils.data import TensorDataset, DataLoader
 
 from tinyquant.Model import Model
 from tinyquant.Tensor import FTensor
+from extra.model_summary import summarize
 
 
 class MultiLayerPerceptron(torch.nn.Module):
@@ -31,24 +33,26 @@ class MultiLayerPerceptron(torch.nn.Module):
         return output
 
 
-class TestQuantize(unittest.TestCase):
+class TestMlp(unittest.TestCase):
 
-    def test_mlp(self):
+    def __init__(self, *args, **kwargs):
+        super(TestMlp, self).__init__(*args, **kwargs)
+
+        print("MLP Dataset")
         n_samples = 1000
-
         X, Y = make_circles(n_samples=n_samples, noise=0.03, random_state=42)
         X = np.array(X, dtype=np.float32)
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, train_size=0.7, random_state=0)
-
-        torch_model = MultiLayerPerceptron(input_size=X.shape[1], hidden_size=10, output_size=X.shape[1])
-        criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(torch_model.parameters(), lr=0.2)
-
         Y_train_one_hot = np.eye(2, dtype=np.float32)[Y_train]  # One-Hot encoding
         trainset = TensorDataset(torch.tensor(X_train), torch.tensor(Y_train_one_hot))
         trainloader = DataLoader(trainset, batch_size=1)
 
-        print("Training")
+        print("MLP Model Creation")
+        torch_model = MultiLayerPerceptron(input_size=X.shape[1], hidden_size=10, output_size=X.shape[1])
+
+        print("MLP Training")
+        optimizer = torch.optim.SGD(torch_model.parameters(), lr=0.2)
+        criterion = torch.nn.CrossEntropyLoss()
         for epoch in range(4):
             average_loss = 0.0
             for i, (x, y) in enumerate(trainloader):
@@ -63,8 +67,8 @@ class TestQuantize(unittest.TestCase):
             test_outputs = torch_model(torch.tensor(X_test, requires_grad=False)).detach().numpy()
             acc = np.mean(test_outputs.argmax(axis=1) == Y_test)
             print(f" - Epoch: {epoch:2d}, Mean Accuracy: {acc:.2f}, Average Loss: {average_loss:.2f}")
-        print()
 
+        print("MLP ONNX export")
         args = torch.Tensor(X_test)
         file_path = (pathlib.Path(__file__).parent / 'mlp.onnx').resolve()
         torch.onnx.export(torch_model,  # model being run
@@ -77,21 +81,49 @@ class TestQuantize(unittest.TestCase):
                           output_names=['output'],  # the model's output names
                           dynamic_axes={'input': {0: 'batch_size'},  # variable length axes
                                         'output': {0: 'batch_size'}})
-
         onnx_model = onnx.load(file_path)
         onnx.checker.check_model(onnx_model)
 
-        tinyq_model = Model(onnx_model)
-        tinyq_outputs = tinyq_model([FTensor(X_test)])[0].data
+        self.X_test = X_test
+        self.Y_test = Y_test
+        self.torch_model = torch_model
+        self.onnx_model = onnx_model
+
+    def test_mlp_onnx_import(self):
+        tinyq_model = Model(self.onnx_model)
+        self.assertEqual(
+            summarize(tinyq_model), textwrap.dedent("""\
+            =================+=====================+====================
+            Node             | Inputs              | Outputs            
+            =================+=====================+====================
+            /fc1/Gemm        | input               | /fc1/Gemm_output_0 
+                             | fc1.weight          |                    
+                             | fc1.bias            |                    
+            -----------------+---------------------+--------------------
+            /relu/Relu       | /fc1/Gemm_output_0  | /relu/Relu_output_0
+            -----------------+---------------------+--------------------
+            /fc2/Gemm        | /relu/Relu_output_0 | /fc2/Gemm_output_0 
+                             | fc2.weight          |                    
+                       d      | fc2.bias            |                    
+            -----------------+---------------------+--------------------
+            /sigmoid/Sigmoid | /fc2/Gemm_output_0  | output             
+            -----------------+---------------------+--------------------
+            """)
+        )
+        print(summarize(tinyq_model))
+
+    def test_mlp_float_inference(self):
+        tinyq_model = Model(self.onnx_model)
+        tinyq_outputs = tinyq_model([FTensor(self.X_test)])[0].data
 
         print("Tinyquant Float Inference")
-        acc = np.mean(tinyq_outputs.argmax(axis=1) == Y_test)
-        print(f"  Mean Accuracy: {acc:.2f}, Average Loss: {average_loss:.2f}")
+        acc = np.mean(tinyq_outputs.argmax(axis=1) == self.Y_test)
+        print(f"  Mean Accuracy: {acc:.2f}")
         print()
 
         actual = tinyq_outputs
-        desired = torch_model(torch.tensor(X_test, requires_grad=False)).detach().numpy()
-        print(f"Summed difference pytorch vs. tinyquant: {np.sum(np.abs(actual-desired))}")
+        desired = self.torch_model(torch.tensor(self.X_test, requires_grad=False)).detach().numpy()
+        print(f"Summed difference pytorch vs. tinyquant: {np.sum(np.abs(actual - desired))}")
         np.testing.assert_allclose(
             actual=actual,
             desired=desired,

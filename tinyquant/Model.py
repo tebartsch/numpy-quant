@@ -117,7 +117,7 @@ class Model:
             elif node.op == 'Gemm':
                 x = node.inputs[0].data
                 w = node.inputs[1].data
-                b = node.inputs[2].data  # TODO
+                b = node.inputs[2].data
                 y = w.dot(x.T).T + b.reshape(tuple([1]*(len(w.shape)-1) + [b.shape[0]]))
                 node.outputs[0].data = y
             else:
