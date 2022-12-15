@@ -1,6 +1,6 @@
 # tinyquant
 
-Evaluate ONNX-model quantization with arbitrary bit-width.
+Quantize ONNX-models with arbitrary bit-width.
 
 **Work In Progress**
 
