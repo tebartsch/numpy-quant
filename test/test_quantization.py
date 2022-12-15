@@ -35,7 +35,7 @@ class TestQuantization(unittest.TestCase):
         ])
         w = FTensor(w_data)
 
-        x_data = np.array([4.2, 2.1, 4.0]).T
+        x_data = np.array([2.2, 2.1, -2.0]).T
         x = FTensor(x_data)
 
         for w_asym, x_asym in [(False, False), (False, True), (True, False), (True, True)]:

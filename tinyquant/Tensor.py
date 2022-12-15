@@ -61,25 +61,18 @@ class FTensor(Tensor):
 class QTensor(Tensor):
     def __init__(self, data: np.ndarray[Any, np.int64], bit_width: int,
                  scale: np.float32,
-                 zero_point: Optional[Union[np.float32, np.ndarray[Any, np.float32]]] = None):
+                 zero_point: Optional[Union[np.ndarray[Any, np.int64]]] = None):
         self.bit_width = bit_width
         self.scale = scale
         self.zero_point = zero_point
 
-        if bit_width == 1:
-            raise ValueError(f"bit_width={bit_width} not supported.")
-        elif bit_width <= 8:
-            self._data = data.astype(np.int8)
-        elif bit_width <= 32:
-            self._data = data.astype(np.int32)
-        else:
-            raise ValueError(f"bit_width={bit_width} not supported.")
+        self._data = data.astype(np.int64)
 
     def dequantize(self):
         if self.zero_point is None:
             return FTensor(self._data * self.scale)
         else:
-            return FTensor((self._data + self.zero_point) * self.scale)
+            return FTensor((self._data - self.zero_point) * self.scale)
 
     @property
     def data(self):
@@ -109,5 +102,5 @@ class QTensor(Tensor):
                             * other.zero_point
                           + np.expand_dims(other._data.sum(axis=max(-2, -l2)), tuple(range(l2-1)))
                             * self.zero_point
-                          + self.zero_point * other.zero_point * s1[-1])
+                          - self.zero_point * other.zero_point * s1[-1])
             return QTensor(dot_product, 4 * self.bit_width, scale=scale, zero_point=zero_point)
