@@ -133,12 +133,14 @@ class Model:
                 x = node.inputs[0].data
                 w = node.inputs[1].data
                 b = node.inputs[2].data
-                if 'transB' in node.attrs and node.attrs['transB']:
+                if 'transA' in node.attrs and node.attrs['transA']:
                     x = x.T
+                if 'transB' in node.attrs and node.attrs['transB']:
+                    w = w.T
                 if node.op == 'Gemm':
-                    y = w.dot(x).T + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
+                    y = x.dot(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
                 if node.op == 'QGemm':
-                    y = w.dot(x).T + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
+                    y = x.dot(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
                     y = y.requantize(node.attrs['output_bit_width'], node.attrs['output_scale'],
                                      node.attrs['output_zero_point'])
                 node.outputs[0].data = y
@@ -262,8 +264,7 @@ class Model:
         qoutputs = [qvalues_dict[o.name] for o in self.outputs]
         qinputs = [qvalues_dict[i.name] for i in self.inputs]
 
-        # Insert quantization nodes into quantized graph
-        for input in qinputs:
+        def insert_quantization_node(value: Value, nodes: list[Node]):
             attrs = get_quantization_params(input)
             qnode = Node(f"{value.name}/quantize", "TinyQuantize", attrs, [input], [])
             qinput = Variable(f"{qnode.name}_output_0", inputs=[qnode], outputs=copy(input.outputs))
@@ -271,13 +272,11 @@ class Model:
             for o in input.outputs:
                 ind = o.inputs.index(input)
                 o.inputs[ind] = qinput
-            split = min([list(qnodes_dict).index(o.name) for o in input.outputs])
+            split = min([nodes.index(o) for o in input.outputs])
             input.outputs = [qnode]
-            qnodes_dict_pairs = list(qnodes_dict.items())
-            qnodes_dict = OrderedDict(qnodes_dict_pairs[:split] + [(qnode.name, qnode)] + qnodes_dict_pairs[split:])
-            qvalues_dict[qinput.name] = qinput
-        # Insert dequantization nodes into quantized graph
-        for output in qoutputs:
+            return qinput, nodes[:split] + [qnode] + nodes[split:]
+
+        def insert_dequantization_node(value: Value, nodes: list[Node]):
             attrs = get_quantization_params(output)
             qnode = Node(f"{value.name}/dequantize", "TinyDequantize", attrs, [], [output])
             qoutput = Variable(f"{qnode.name}_input_0", inputs=copy(output.inputs), outputs=[qnode])
@@ -285,10 +284,19 @@ class Model:
             for i in output.inputs:
                 ind = i.outputs.index(output)
                 i.outputs[ind] = qoutput
-            split = max([list(qnodes_dict).index(i.name) for i in output.inputs]) + 1
+            split = max([nodes.index(i) for i in output.inputs]) + 1
             output.inputs = [qnode]
-            qnodes_dict_pairs = list(qnodes_dict.items())
-            qnodes_dict = OrderedDict(qnodes_dict_pairs[:split] + [(qnode.name, qnode)] + qnodes_dict_pairs[split:])
+            return qoutput, nodes[:split] + [qnode] + nodes[split:]
+
+        # Insert input quantization nodes into quantized graph
+        for input in qinputs:
+            qinput, new_nodes = insert_quantization_node(input, list(qnodes_dict.values()))
             qvalues_dict[qinput.name] = qinput
+            qnodes_dict = {n.name: n for n in new_nodes}
+        # Insert output dequantization nodes into quantized graph
+        for output in qoutputs:
+            qoutput, new_nodes = insert_dequantization_node(input, list(qnodes_dict.values()))
+            qvalues_dict[qoutput.name] = qoutput
+            qnodes_dict = {n.name: n for n in new_nodes}
 
         return Model(list(qnodes_dict.values()), list(qvalues_dict.values()), qinputs, qoutputs)

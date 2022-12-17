@@ -27,6 +27,9 @@ class FTensor:
     def reshape(self, shape: tuple[int, ...]):
         return FTensor(self.data.reshape(shape))
 
+    def transpose(self, *axes):
+        return FTensor(self.data.transpose(*axes))
+
     def __neg__(self):
         return FTensor(-self.data)
 
@@ -72,10 +75,14 @@ class QTensor:
 
     @property
     def T(self):
-        return QTensor(self.data.T, self.bit_width, self.scale, self.zero_point.T)
+        zero_point_T = None if self.zero_point is None else self.zero_point.T
+        return QTensor(self.data.T, self.bit_width, self.scale, zero_point_T)
 
     def reshape(self, shape: tuple[int, ...]):
         return QTensor(self.data.reshape(shape), self.bit_width, self.scale, self.zero_point)
+
+    def transpose(self, *axes):
+        return QTensor(self.data.transpose(*axes))
 
     def __add__(self, other: 'QTensor'):
         if isinstance(other, QTensor):
