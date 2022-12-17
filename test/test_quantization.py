@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import itertools
+import textwrap
 import unittest
 import numpy as np
-import onnx
-import onnx.shape_inference
+import onnx.numpy_helper
 
+import onnx_models
+from extra.model_summary import summarize
 from tinyquant.model import Model
 from tinyquant.quantize import quant_parameters
 from tinyquant.tensor import FTensor, quantize_tensor_min_max, tensor_min_max, quantize_tensor
@@ -31,6 +33,8 @@ class TestQuantization(unittest.TestCase):
         )
 
     def test_quantized_dot(self):
+        rng = np.random.default_rng(0)
+
         # Simple example
         w_data = np.array([
             [+1.3, +5.0, -0.3],
@@ -59,9 +63,9 @@ class TestQuantization(unittest.TestCase):
             )
 
         # Test on random data
-        w_data = np.random.random((2, 1, 4, 3))
+        w_data = rng.random((2, 1, 4, 3))
         w = FTensor(w_data)
-        x_data = np.random.random((1, 2, 3, 4))
+        x_data = rng.random((1, 2, 3, 4))
         x = FTensor(x_data)
 
         for w_asym, x_asym in [(False, False), (False, True), (True, False), (True, True)]:
@@ -77,6 +81,8 @@ class TestQuantization(unittest.TestCase):
             )
 
     def test_quantized_dot_with_requantize(self):
+        rng = np.random.default_rng(0)
+
         # Simple example
         w_data = np.array([
             [+1.3, +5.0, -0.3],
@@ -113,9 +119,9 @@ class TestQuantization(unittest.TestCase):
             )
 
         # Test on random data
-        w_data = np.random.random((2, 1, 4, 3))
+        w_data = rng.random((2, 1, 4, 3))
         w = FTensor(w_data)
-        x_data = np.random.random((1, 2, 3, 4))
+        x_data = rng.random((1, 2, 3, 4))
         x = FTensor(x_data)
         y = w.dot(x)
 
@@ -138,55 +144,20 @@ class TestQuantization(unittest.TestCase):
             )
 
     def test_gemm(self):
+        rng = np.random.default_rng(0)
+
         k, m, n = 3, 4, 2
 
-        input_name, output_name = "input_name", "output_name"
-        input = onnx.helper.make_tensor_value_info(input_name, onnx.TensorProto.FLOAT, [k, m])
-        output = onnx.helper.make_tensor_value_info(output_name, onnx.TensorProto.FLOAT, [k, n])
-
-        weight_data = np.random.normal(size=(m, n)).astype(np.float32)
-        bias_data = np.random.normal(size=n).astype(np.float32)
-
-        weight_name = "weight"
-        weight = onnx.helper.make_tensor(name=weight_name,
-                                         data_type=onnx.TensorProto.FLOAT,
-                                         dims=weight_data.shape,
-                                         vals=weight_data.flatten().tolist())
-
-        bias_name = "bias"
-        bias = onnx.helper.make_tensor(name=bias_name,
-                                       data_type=onnx.TensorProto.FLOAT,
-                                       dims=bias_data.shape,
-                                       vals=bias_data.flatten().tolist())
-
-        node = onnx.helper.make_node(
-            name="Gemm",
-            op_type="Gemm",
-            inputs=[input_name, weight_name, bias_name],
-            outputs=[output_name],
-        )
-
-        graph_def = onnx.helper.make_graph(
-            nodes=[node],
-            name="Gemm",
-            inputs=[input],
-            outputs=[output],
-            initializer=[weight, bias],
-        )
-
-        onnx_model = onnx.helper.make_model(graph_def, producer_name="tinyquant-test")
-        onnx_model.opset_import[0].version = 13
-
-        onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
-
-        onnx.checker.check_model(onnx_model)
-        # onnx.save(model_def, "Gemm.onnx")
+        onnx_model = onnx_models.gemm(k, m, n, random_seed=0)
+        initializers = {i.name: i for i in onnx_model.graph.initializer}
+        weight_data = onnx.numpy_helper.to_array(initializers["weight"])
+        bias_data = onnx.numpy_helper.to_array(initializers["bias"])
 
         model = Model.from_onnx(onnx_model)
-        input_data = np.random.normal(size=(k, m))
+        input_data = rng.normal(size=(k, m))
         qmodel = model.quantize_model([FTensor(input_data)], bit_width=8)
-        qoutput = qmodel([FTensor(input_data)])[0]
 
+        qoutput = qmodel([FTensor(input_data)])[0]
         actual = qoutput.data
         desired = input_data.dot(weight_data) + bias_data
         mean_diff = np.mean(np.abs(actual - desired)) / (desired.max() - desired.min())

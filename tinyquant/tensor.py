@@ -5,6 +5,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 
+from tinyquant import numpy_helper
 from tinyquant.quantize import quant_parameters, quantize
 
 
@@ -161,3 +162,14 @@ def quantize_tensor_min_max(tensor: Tensor, bit_width: int, asymmetric: bool):
     min_val, max_val = tensor_min_max(tensor)
     scale, zero_point = quant_parameters(min_val, max_val, bit_width, asymmetric)
     return quantize_tensor(tensor, bit_width, scale, zero_point)
+
+
+def fconv2d(x: FTensor, w: FTensor, b: FTensor,
+            pads: (int, int, int, int), strides: (int, int)):
+    x_data_t = x.data.transpose((0, 2, 3, 1))
+    w_data_t = w.data.transpose((2, 3, 1, 0))
+    y0_data_t = numpy_helper.conv2d(x_data_t, w_data_t, pads, strides)
+    y0_data = y0_data_t.transpose((0, 3, 1, 2))
+    b_data = b.data
+    y_data = y0_data + np.expand_dims(b_data, (0, 2, 3))
+    return FTensor(y_data)

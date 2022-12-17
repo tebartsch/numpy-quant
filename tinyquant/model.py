@@ -8,9 +8,9 @@ import numpy as np
 import onnx
 import onnx.mapping
 import onnx.numpy_helper
-from abc import ABC
 
-from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max
+from tinyquant.numpy_helper import conv2d
+from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d
 from tinyquant.quantize import quant_parameters
 
 
@@ -143,6 +143,12 @@ class Model:
                     y = x.dot(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
                     y = y.requantize(node.attrs['output_bit_width'], node.attrs['output_scale'],
                                      node.attrs['output_zero_point'])
+                node.outputs[0].data = y
+            elif node.op == 'Conv':
+                x = node.inputs[0].data
+                w = node.inputs[1].data
+                b = node.inputs[2].data
+                y = fconv2d(x, w, b, tuple(node.attrs['pads']), tuple(node.attrs['strides']))
                 node.outputs[0].data = y
             elif node.op == 'TinyQuantize':
                 x = node.inputs[0].data
