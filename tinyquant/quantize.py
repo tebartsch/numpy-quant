@@ -3,28 +3,29 @@ Implement quantization routines.
 """
 import numpy as np
 
-from tinyquant import QTensor, Tensor
 
-
-def quantize_tensor(tensor: Tensor, bit_width: int, asymmetric: bool):
-    data = tensor.data
-
-    min_val = np.minimum(data.min(), 0.0)
-    max_val = np.maximum(data.max(), 0.0)
-    min_qval, max_qval = -2.0 ** (bit_width-1), 2.0 ** (bit_width-1) - 1.0
+def quant_parameters(min_val: np.float32, max_val: np.float32, bit_width: int, asymmetric: bool):
+    min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
 
     if asymmetric:
         scale = (max_val - min_val) / (max_qval - min_qval)
         zero_point0 = min_qval - min_val / scale
         zero_point = np.rint(zero_point0).astype(np.int64)
-        q_data_float = zero_point + data / scale
     else:
         scale = (2 * max(max_val, min_val)) / (max_qval - min_qval)
         zero_point = None
+
+    return scale, zero_point
+
+
+def quantize(data: np.ndarray, bit_width: int, scale: np.float64, zero_point: np.int64 | None):
+    if zero_point is not None:
+        q_data_float = zero_point + data / scale
+    else:
         q_data_float = data / scale
 
+    min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
     q_data_clipped = np.clip(q_data_float, min_qval, max_qval)
     q_data = np.array(np.rint(q_data_clipped), dtype=np.int64)
 
-    return QTensor(q_data, bit_width, scale=scale, zero_point=zero_point)
-
+    return q_data

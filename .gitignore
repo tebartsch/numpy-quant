@@ -2,3 +2,4 @@
 venv
 *.onnx
 __pycache__
+*.pyc

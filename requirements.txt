@@ -3,4 +3,4 @@ torchvision
 torchaudio
 scikit-learn
 onnx
-*.pyc
+plotext

@@ -2,6 +2,8 @@
 import unittest
 import pathlib
 import textwrap
+import plotext as plt
+
 import numpy as np
 import onnx
 from sklearn.datasets import make_circles
@@ -9,9 +11,37 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from tinyquant.Model import Model
-from tinyquant.Tensor import FTensor
+from tinyquant.model import Model
+from tinyquant.tensor import FTensor, QTensor
 from extra.model_summary import summarize
+
+
+def dataset_plot(X, Y, title=None):
+    plt.plot_size(50, 15)
+    plt.axes_color('default')
+    plt.canvas_color('default')
+    plt.ticks_color('default')
+    plt.scatter(X[Y == 0][:20, 0], X[Y == 0][:20, 1], label="class 0")
+    plt.scatter(X[Y == 1][:20, 0], X[Y == 1][:20, 1], label="class 1")
+    if title:
+        plt.title(title)
+    plt.show()
+    plt.clear_figure()
+
+
+def accuracy_plot(x, y, title=None, xlabel=None):
+    plt.plot_size(100, 10)
+    plt.axes_color('default')
+    plt.canvas_color('default')
+    plt.ticks_color('default')
+    plt.xticks(x)
+    plt.scatter(x, y)
+    if title:
+        plt.title(title)
+    if xlabel:
+        plt.xlabel(xlabel)
+    plt.show()
+    plt.clear_figure()
 
 
 class MultiLayerPerceptron(torch.nn.Module):
@@ -20,9 +50,9 @@ class MultiLayerPerceptron(torch.nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.fc1 = torch.nn.Linear(self.input_size, self.hidden_size)
+        self.fc1 = torch.nn.Linear(self.input_size, self.hidden_size, bias=True)
         self.relu = torch.nn.ReLU()
-        self.fc2 = torch.nn.Linear(self.hidden_size, self.output_size)
+        self.fc2 = torch.nn.Linear(self.hidden_size, self.output_size, bias=True)
         self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
@@ -40,12 +70,14 @@ class TestMlp(unittest.TestCase):
 
         print("MLP Dataset")
         n_samples = 1000
-        X, Y = make_circles(n_samples=n_samples, noise=0.03, random_state=42)
+        X, Y = make_circles(n_samples=n_samples, noise=0.03)
         X = np.array(X, dtype=np.float32)
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, train_size=0.7, random_state=0)
         Y_train_one_hot = np.eye(2, dtype=np.float32)[Y_train]  # One-Hot encoding
         trainset = TensorDataset(torch.tensor(X_train), torch.tensor(Y_train_one_hot))
         trainloader = DataLoader(trainset, batch_size=1)
+
+        dataset_plot(X[:100, :], Y[:100], title="Dataset")
 
         print("MLP Model Creation")
         torch_model = MultiLayerPerceptron(input_size=X.shape[1], hidden_size=10, output_size=X.shape[1])
@@ -53,7 +85,7 @@ class TestMlp(unittest.TestCase):
         print("MLP Training")
         optimizer = torch.optim.SGD(torch_model.parameters(), lr=0.2)
         criterion = torch.nn.CrossEntropyLoss()
-        for epoch in range(4):
+        for epoch in range(5):
             average_loss = 0.0
             for i, (x, y) in enumerate(trainloader):
                 optimizer.zero_grad()
@@ -71,15 +103,15 @@ class TestMlp(unittest.TestCase):
         print("MLP ONNX export")
         args = torch.Tensor(X_test)
         file_path = (pathlib.Path(__file__).parent / 'mlp.onnx').resolve()
-        torch.onnx.export(torch_model,  # model being run
-                          args,  # model input (or a tuple for multiple inputs)
-                          file_path,  # where to save the model (can be a file or file-like object)
-                          export_params=True,  # store the trained parameter weights inside the model file
-                          opset_version=10,  # the ONNX version to export the model to
-                          do_constant_folding=True,  # whether to execute constant folding for optimization
-                          input_names=['input'],  # the model's input names
-                          output_names=['output'],  # the model's output names
-                          dynamic_axes={'input': {0: 'batch_size'},  # variable length axes
+        torch.onnx.export(torch_model,
+                          args,
+                          file_path,
+                          export_params=True,
+                          opset_version=10,
+                          do_constant_folding=True,
+                          input_names=['input'],
+                          output_names=['output'],
+                          dynamic_axes={'input': {0: 'batch_size'},
                                         'output': {0: 'batch_size'}})
         onnx_model = onnx.load(file_path)
         onnx.checker.check_model(onnx_model)
@@ -90,9 +122,9 @@ class TestMlp(unittest.TestCase):
         self.onnx_model = onnx_model
 
     def test_mlp_onnx_import(self):
-        tinyq_model = Model(self.onnx_model)
+        model = Model.from_onnx(self.onnx_model)
         self.assertEqual(
-            summarize(tinyq_model), textwrap.dedent("""\
+            summarize(model), textwrap.dedent("""\
             =================+=====================+====================
             Node             | Inputs              | Outputs            
             =================+=====================+====================
@@ -110,11 +142,11 @@ class TestMlp(unittest.TestCase):
             -----------------+---------------------+--------------------
             """)
         )
-        print(summarize(tinyq_model))
+        print(summarize(model))
 
     def test_mlp_float_inference(self):
-        tinyq_model = Model(self.onnx_model)
-        tinyq_outputs = tinyq_model([FTensor(self.X_test)])[0].data
+        model = Model.from_onnx(self.onnx_model)
+        tinyq_outputs = model([FTensor(self.X_test)])[0].data
 
         print("Tinyquant Float Inference")
         acc = np.mean(tinyq_outputs.argmax(axis=1) == self.Y_test)
@@ -129,3 +161,72 @@ class TestMlp(unittest.TestCase):
             desired=desired,
             rtol=1e-05,
         )
+
+    def test_mlp_quantization(self):
+        model = Model.from_onnx(self.onnx_model)
+        qmodel = model.quantize_model([FTensor(self.X_test)])
+        self.assertEqual(
+            summarize(qmodel), textwrap.dedent("""\
+                    =================+==========================+=========================
+                    Node             | Inputs                   | Outputs                 
+                    =================+==========================+=========================
+                    input/quantize   | input                    | input/quantize_output_0 
+                    -----------------+--------------------------+-------------------------
+                    /fc1/Gemm        | input/quantize_output_0  | /fc1/Gemm_output_0      
+                                     | fc1.weight               |                         
+                                     | fc1.bias                 |                         
+                    -----------------+--------------------------+-------------------------
+                    /relu/Relu       | /fc1/Gemm_output_0       | /relu/Relu_output_0     
+                    -----------------+--------------------------+-------------------------
+                    /fc2/Gemm        | /relu/Relu_output_0      | /fc2/Gemm_output_0      
+                                     | fc2.weight               |                         
+                                     | fc2.bias                 |                         
+                    -----------------+--------------------------+-------------------------
+                    /sigmoid/Sigmoid | /fc2/Gemm_output_0       | input/dequantize_input_0
+                    -----------------+--------------------------+-------------------------
+                    input/dequantize | input/dequantize_input_0 | output                  
+                    -----------------+--------------------------+-------------------------
+                    """)
+        )
+        print(summarize(qmodel))
+
+    def test_mlp_quantized_inference(self):
+        model = Model.from_onnx(self.onnx_model)
+        qmodel = model.quantize_model([FTensor(self.X_test)], bit_width=8)
+
+        outputs = model([FTensor(self.X_test)])[0].data
+        qoutputs = qmodel([FTensor(self.X_test)])[0].data
+
+        print("Mean difference of float and dequantized int tensors")
+        qmodel_value_dict = {v.name: v for v in qmodel.values}
+        max_name_len = max((len(name) for name in qmodel_value_dict), default=0)
+        for value in model.values:
+            x = value.data
+            qx = qmodel_value_dict[value.name].data
+            if isinstance(qx, QTensor):
+                mean_diff = np.mean(np.abs(qx.dequantize().data - x.data)) / (x.data.max() - x.data.min())
+            else:
+                mean_diff = np.mean(np.abs(qx.data - x.data)) / (x.data.max() - x.data.min())
+            print(f" - {value.name + ': ':<{max_name_len}} {mean_diff:.4E}")
+
+        print("Quantized Inference")
+        acc = np.mean(outputs.argmax(axis=1) == self.Y_test)
+        qacc = np.mean(qoutputs.argmax(axis=1) == self.Y_test)
+        print(f" - float Mean Accuracy:     {acc:.2f}")
+        print(f" - quantized Mean Accuracy: {qacc:.2f}")
+        print()
+
+    def test_differing_bit_widths(self):
+        model = Model.from_onnx(self.onnx_model)
+        bit_width_list = list(range(1, 17))
+        q_acc_list = []
+        for bit_width in bit_width_list:
+            # Average over some different quantized models
+            n = 10
+            q_acc_sum = 0.0
+            for i in range(n):
+                qmodel = model.quantize_model([FTensor(self.X_test)], bit_width=bit_width)
+                qoutputs = qmodel([FTensor(self.X_test)])[0].data
+                q_acc_sum = np.mean(qoutputs.argmax(axis=1) == self.Y_test)
+            q_acc_list.append(q_acc_sum / n)
+        accuracy_plot(bit_width_list, q_acc_list, title="accuracy", xlabel="bit width")

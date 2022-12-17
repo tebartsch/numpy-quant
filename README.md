@@ -6,13 +6,13 @@ Quantize ONNX-models with arbitrary bit-width.
 
 `tinyquant` aims to
  
- - evaluate neural network quantization methods for arbitrary bit-widths
+ - allow evaluating neural network quantization methods for arbitrary bit-widths
  - support importing ONNX models
  - be able to quantize common
    - CNNs
    - transformers
    - graph neural networks
- - consist of <500 lines of code
+ - consist of less than ~~500~~ 1000 lines of code
 
 ## Installation
 
