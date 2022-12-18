@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 import itertools
-import textwrap
 import unittest
 import numpy as np
 import onnx.numpy_helper
 
-import onnx_models
-from extra.model_summary import summarize
+from models import onnx_models
 from tinyquant.model import Model
 from tinyquant.quantize import quant_parameters
 from tinyquant.tensor import FTensor, quantize_tensor_min_max, tensor_min_max, quantize_tensor

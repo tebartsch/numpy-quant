@@ -5,3 +5,5 @@ scikit-learn
 onnx
 plotext
 onnxruntime
+transformers
+datasets

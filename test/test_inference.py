@@ -5,7 +5,7 @@ import numpy as np
 import onnx.numpy_helper
 import onnxruntime as ort
 
-import onnx_models
+from models import onnx_models
 from tinyquant.model import Model
 from tinyquant.numpy_helper import conv2d
 from tinyquant.tensor import FTensor
@@ -80,7 +80,6 @@ class TestInference(unittest.TestCase):
         desired_t = conv2d(input_data_t, weight_data_t, pads, strides) + bias_data
         desired = desired_t.transpose((0, 3, 1, 2))
 
-        print(np.mean(np.abs(actual.data - desired)))
         np.testing.assert_equal(actual, desired)
 
     def test_vit_self_attention(self):
@@ -100,5 +99,5 @@ class TestInference(unittest.TestCase):
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
         desired = ort_sess.run(None, {'inputs': input_data})[0]
-        print(np.mean(np.abs(actual.data - desired)))
 
+        np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?

@@ -1,4 +1,5 @@
 import io
+import pathlib
 from itertools import zip_longest
 
 import onnx
@@ -6,8 +7,12 @@ import onnx.shape_inference
 import onnx.numpy_helper
 import numpy as np
 import torch
-from transformers import ViTConfig
-from transformers.models.vit.modeling_vit import ViTSelfAttention
+from datasets import load_dataset
+from transformers import ViTConfig, ViTImageProcessor
+from transformers.models.vit.modeling_vit import ViTSelfAttention, ViTModel
+
+
+base_path = pathlib.Path(__file__).parent
 
 
 def shapes_broadcastable(shape_a: tuple[int, ...], shape_b: tuple[int, ...]):
@@ -92,8 +97,6 @@ def matmul(a_shape: tuple[int, ...], b_shape: tuple[int, ...]):
 
     onnx.checker.check_model(onnx_model)
 
-    onnx.save(onnx_model, "matmul.onnx")
-
     return onnx_model
 
 
@@ -173,3 +176,33 @@ def vit_self_attention(batch_size: int, embeddings_size: int, hidden_size: int, 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
 
     return onnx_model
+
+
+def vit():
+    dataset = load_dataset("huggingface/cats-image")
+    image = dataset["test"]["image"][0]
+    feature_extractor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
+    model = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k")
+    inputs = feature_extractor(image, return_tensors="pt")
+    with torch.no_grad():
+        model(**inputs)
+
+    onnx_bytes = io.BytesIO()
+    torch.onnx.export(
+        model,
+        tuple(inputs.values()),
+        f=onnx_bytes,
+        input_names=['input_ids'],
+        output_names=['last_hidden_state', 'pooler_output'],
+        do_constant_folding=True,
+        opset_version=13,
+    )
+    onnx_model = onnx.load_from_string(onnx_bytes.getvalue())
+    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
+
+    return onnx_model
+
+
+if __name__ == "__main__":
+    vit()
+    onnx.save(vit(), base_path / "vit.onnx")

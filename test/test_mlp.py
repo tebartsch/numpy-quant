@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import io
 import unittest
 import pathlib
 import textwrap
@@ -102,10 +103,10 @@ class TestMlp(unittest.TestCase):
 
         print("MLP ONNX export")
         args = torch.Tensor(X_test)
-        file_path = (pathlib.Path(__file__).parent / 'mlp.onnx').resolve()
+        onnx_model_bytes = io.BytesIO()
         torch.onnx.export(torch_model,
                           args,
-                          file_path,
+                          onnx_model_bytes,
                           export_params=True,
                           opset_version=10,
                           do_constant_folding=True,
@@ -113,7 +114,7 @@ class TestMlp(unittest.TestCase):
                           output_names=['output'],
                           dynamic_axes={'input': {0: 'batch_size'},
                                         'output': {0: 'batch_size'}})
-        onnx_model = onnx.load(file_path)
+        onnx_model = onnx.load_from_string(onnx_model_bytes.getvalue())
         onnx.checker.check_model(onnx_model)
 
         self.X_test = X_test
