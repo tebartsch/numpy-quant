@@ -9,8 +9,7 @@ import onnx
 import onnx.mapping
 import onnx.numpy_helper
 
-from tinyquant.numpy_helper import conv2d
-from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d, ITensor
+from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d, ITensor, concat, where
 from tinyquant.quantize import quant_parameters
 
 
@@ -128,12 +127,27 @@ class Model:
                 b = node.inputs[1].data
                 y = a + b
                 node.outputs[0].data = y
+            elif node.op == 'Concat':
+                x_list = [x.data for x in node.inputs]
+                axis = node.attrs['axis']
+                node.outputs[0].data = concat(x_list, axis=axis)
             elif node.op == 'Constant':
                 value = node.attrs['value']
                 if value.dtype == np.float32:
                     node.outputs[0].data = FTensor(value)
                 elif value.dtype == np.int64:
                     node.outputs[0].data = ITensor(value)
+                else:
+                    cls = value.dtype.__class__
+                    raise ValueError(f"Constant value type {cls.__module__}.{cls.__qualname__} not supported.")
+            elif node.op == 'ConstantOfShape':
+                shape = node.inputs[0].data
+                value = node.attrs['value']
+                y_data = np.full(tuple(shape.data), fill_value=value, dtype=value.dtype)
+                if value.dtype == np.float32:
+                    node.outputs[0].data = FTensor(y_data)
+                elif value.dtype == np.int64:
+                    node.outputs[0].data = ITensor(y_data)
                 else:
                     cls = value.dtype.__class__
                     raise ValueError(f"Constant value type {cls.__module__}.{cls.__qualname__} not supported.")
@@ -147,6 +161,22 @@ class Model:
                 a = node.inputs[0].data
                 b = node.inputs[1].data
                 y = a.div(b)
+                node.outputs[0].data = y
+            elif node.op == 'Equal':
+                a = node.inputs[0].data
+                b = node.inputs[1].data
+                node.outputs[0].data = a == b
+            elif node.op == 'Erf':
+                x = node.inputs[0].data
+                node.outputs[0].data = x.erf()
+            elif node.op == 'Expand':
+                x = node.inputs[0].data
+                shape = node.inputs[1].data
+                node.outputs[0].data = x.expand(shape)
+            elif node.op == 'Gather':
+                x = node.inputs[0].data
+                indices = node.inputs[1].data
+                y = x.take(indices, axis=node.attrs['axis'])
                 node.outputs[0].data = y
             elif node.op in ['Gemm', 'QGemm']:
                 x = node.inputs[0].data
@@ -163,11 +193,40 @@ class Model:
                     y = y.requantize(node.attrs['output_bit_width'], node.attrs['output_scale'],
                                      node.attrs['output_zero_point'])
                 node.outputs[0].data = y
+            elif node.op in ['Identity']:
+                node.outputs[0].data = node.inputs[0].data.copy()
+            elif node.op == 'LayerNormalization':
+                # See formulas: https://github.com/onnx/onnx/blob/main/docs/Operators.md#ReduceMean
+                x = node.inputs[0].data
+                scale = node.inputs[1].data
+                bias = node.inputs[2].data
+
+                # stage 1
+                mean = x.mean(axis=node.attrs['axis'], keepdims=True)
+                d = x + (-mean)
+                dd = d * d
+                var = dd.mean(axis=node.attrs['axis'], keepdims=True)
+                vareps = var + node.attrs['epsilon']
+                stddev = vareps.sqrt()
+                normalized = d * stddev.inv()
+
+                # stage 2
+                y = normalized * scale + bias
+
+                node.outputs[0].data = y
             elif node.op in ['MatMul']:
                 a = node.inputs[0].data
                 b = node.inputs[1].data
                 y = a.matmul(b)
                 node.outputs[0].data = y
+            elif node.op in ['Mul']:
+                a = node.inputs[0].data
+                b = node.inputs[1].data
+                y = a * b
+                node.outputs[0].data = y
+            elif node.op == 'ReduceMean':
+                x = node.inputs[0].data
+                node.outputs[0].data = x.mean(node.attrs['axis'])
             elif node.op == 'Relu':
                 x = node.inputs[0].data
                 y = x.relu()
@@ -181,10 +240,25 @@ class Model:
                 x = node.inputs[0].data
                 y = x.sigmoid()
                 node.outputs[0].data = y
+            elif node.op == "Shape":
+                x = node.inputs[0].data
+                node.outputs[0].data = x.shape
+            elif node.op == "Slice":
+                x = node.inputs[0].data
+                starts = node.inputs[1].data.data
+                ends = node.inputs[2].data.data
+                axes = node.inputs[3].data.data
+                slices = [slice(None, None, None)] * x.shape.size
+                for s, e, a in zip(starts, ends, axes):
+                    slices[a] = slice(s, e)
+                node.outputs[0].data = x.__getitem__(tuple(slices))
             elif node.op == 'Softmax':
                 x = node.inputs[0].data
-                y = x.softmax()
+                y = x.softmax(axis=node.attrs['axis'])
                 node.outputs[0].data = y
+            elif node.op == 'Tanh':
+                x = node.inputs[0].data
+                node.outputs[0].data = x.tanh()
             elif node.op == 'TinyQuantize':
                 x = node.inputs[0].data
                 y = quantize_tensor(x, node.attrs['bit_width'], node.attrs['scale'], node.attrs['zero_point'])
@@ -201,6 +275,11 @@ class Model:
                 axes = node.attrs['perm']
                 y = x.transpose(axes)
                 node.outputs[0].data = y
+            elif node.op == 'Where':
+                condition = node.inputs[0].data
+                x = node.inputs[1].data
+                y = node.inputs[2].data
+                node.outputs[0].data = where(condition, x, y)
             else:
                 raise ValueError(f"ONNX operand {node.op} not supported.")
 

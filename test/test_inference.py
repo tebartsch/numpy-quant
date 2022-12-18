@@ -8,7 +8,7 @@ import onnxruntime as ort
 from models import onnx_models
 from tinyquant.model import Model
 from tinyquant.numpy_helper import conv2d
-from tinyquant.tensor import FTensor
+from tinyquant.tensor import FTensor, ITensor
 
 
 class TestInference(unittest.TestCase):
@@ -80,6 +80,25 @@ class TestInference(unittest.TestCase):
         desired_t = conv2d(input_data_t, weight_data_t, pads, strides) + bias_data
         desired = desired_t.transpose((0, 3, 1, 2))
 
+        # print(np.mean(np.abs(actual - desired)))
+        np.testing.assert_equal(actual, desired)
+
+    def test_expand(self):
+        onnx_model = onnx_models.expand()
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+
+        model = Model.from_onnx(onnx_model)
+
+        input_data = np.ones((1, 1, 8), dtype=np.float32)
+        shape_data = np.array([1, 1, 1], dtype=np.int64)
+
+        desired = ort_sess.run(None, {'input': input_data,
+                                      'shape': shape_data})[0]
+        actual = model([FTensor(input_data), ITensor(shape_data)])[0].data
+
+        # print(np.mean(np.abs(actual - desired)))
         np.testing.assert_equal(actual, desired)
 
     def test_vit_self_attention(self):
@@ -87,7 +106,11 @@ class TestInference(unittest.TestCase):
         embeddings_size = 10
         hidden_size = 16
         num_attention_heads = 4
+
         onnx_model = onnx_models.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
 
         rng = np.random.default_rng()
 
@@ -95,9 +118,97 @@ class TestInference(unittest.TestCase):
         input_data = rng.normal(size=(batch_size, embeddings_size, hidden_size)).astype(np.float32)
         actual = model([FTensor(input_data)])[0].data
 
+        desired = ort_sess.run(None, {'inputs': input_data})[0]
+
+        # print(np.mean(np.abs(actual - desired)))
+        np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?
+
+    def test_vit_embedding(self):
+        batch_size = 1
+        image_size = 16
+        patch_size = 4
+        hidden_size = 8
+        onnx_model = onnx_models.vit_embedding(batch_size, image_size, patch_size, hidden_size)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+
+        rng = np.random.default_rng()
+
+        model = Model.from_onnx(onnx_model)
+        input_data = rng.normal(size=(batch_size, 3, image_size, image_size)).astype(np.float32)
+        actual = model([FTensor(input_data)])[0].data
+
         desired = ort_sess.run(None, {'inputs': input_data})[0]
 
+        # print(np.mean(np.abs(actual - desired)))
         np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?
+
+    def test_vit_layer(self):
+        batch_size = 1
+        image_size = 16
+        patch_size = 4
+        intermediate_size = 22
+        hidden_size = 8
+        num_attention_heads = 2
+        onnx_model = onnx_models.vit_layer(batch_size, image_size, patch_size, intermediate_size,
+                                           hidden_size, num_attention_heads)
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+
+        rng = np.random.default_rng()
+
+        model = Model.from_onnx(onnx_model)
+        input_data = rng.normal(size=(batch_size, (image_size // patch_size)**2 + 1, hidden_size)).astype(np.float32)
+        actual = model([FTensor(input_data)])[0].data
+
+        desired = ort_sess.run(None, {'inputs': input_data})[0]
+
+        # print(np.mean(np.abs(actual - desired)))
+        np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?
+
+    def test_vit_pooler(self):
+        batch_size = 1
+        image_size = 16
+        patch_size = 4
+        hidden_size = 8
+        onnx_model = onnx_models.vit_pooler(batch_size, image_size, patch_size, hidden_size)
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+
+        rng = np.random.default_rng()
+
+        model = Model.from_onnx(onnx_model)
+        input_data = rng.normal(size=(batch_size, (image_size // patch_size)**2 + 1, hidden_size)).astype(np.float32)
+        actual = model([FTensor(input_data)])[0].data
+
+        desired = ort_sess.run(None, {'inputs': input_data})[0]
+
+        # print(np.mean(np.abs(actual - desired)))
+        np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?
+
+    def test_vit(self):
+        batch_size = 1
+        image_size = 16
+        patch_size = 4
+        intermediate_size = 22
+        hidden_size = 8
+        num_attention_heads = 2
+        onnx_model = onnx_models.vit(batch_size, image_size, patch_size,
+                                     intermediate_size, hidden_size, num_attention_heads)
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+
+        rng = np.random.default_rng()
+
+        model = Model.from_onnx(onnx_model)
+        input_data = rng.normal(size=(batch_size, 3, image_size, image_size)).astype(np.float32)
+        actual = model([FTensor(input_data)])[0].data
+
+        desired = ort_sess.run(None, {'inputs': input_data})[0]
+
+        # print(np.mean(np.abs(actual - desired)))
+        np.testing.assert_allclose(actual, desired, atol=1e-4)  # TODO It seems like the deviation propagates

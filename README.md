@@ -20,6 +20,14 @@ Quantize ONNX-models with arbitrary bit-width.
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
+## Tests
+
+```bash
+python models/onnx_models.py  # Create onnx models 
+python -m unittest discover -s test -p 'test_*.py'  # Run all test
+```
+
 ## Notes
 
- - `tinyquant` expects ONNX models to not use any dynamic axis
+ - tested with ONNX Opset Version 17
+ - ONNX models are expected to not use dynamic axis
