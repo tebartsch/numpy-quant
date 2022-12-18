@@ -17,6 +17,9 @@ class ITensor:
     def data(self):
         return self._data
 
+    def expand_dims(self, axis: 'ITensor'):
+        return ITensor(np.expand_dims(self._data, axis=tuple(axis.data)))
+
     @property
     def shape(self):
         return ITensor(np.array(self._data.shape, dtype=np.int64))
@@ -33,6 +36,12 @@ class ITensor:
 
     def __mul__(self, other: 'ITensor'):
         return ITensor(self._data * other.data)
+
+    def reshape(self, shape: 'ITensor'):
+        return ITensor(self._data.reshape(shape.data))
+
+    def take(self, indices: 'ITensor', axis: int):
+        return ITensor(self._data.take(np.atleast_1d(indices.data), axis))
 
 
 class FTensor:
@@ -168,15 +177,17 @@ class QTensor:
         zero_point_T = None if self.zero_point is None else self.zero_point.T
         return QTensor(self._data.T, self.bit_width, self.scale, zero_point_T)
 
-    def reshape(self, shape: tuple[int, ...]):
-        return QTensor(self._data.reshape(shape), self.bit_width, self.scale, self.zero_point)
+    def reshape(self, shape: ITensor):
+        return QTensor(self._data.reshape(shape.data), self.bit_width, self.scale, self.zero_point)
 
     def transpose(self, *axes):
-        return QTensor(self._data.transpose(*axes))
+        return QTensor(self._data.transpose(*axes), self.bit_width, self.scale, self.zero_point)
 
     def __add__(self, other: 'QTensor'):
         if isinstance(other, QTensor):
             return QTensor(self._data + other.data, self.bit_width, self.scale, self.zero_point)
+        else:
+            raise ValueError(f"Cannot add QTensor with {other.__class__}")
 
     def dequantize(self):
         if self.zero_point is None:
@@ -228,14 +239,15 @@ class QTensor:
 Tensor = Union[ITensor, FTensor, QTensor]
 
 
-def quantize_tensor(tensor: Tensor, bit_width: int, scale: np.float32, zero_point: np.int64 | None):
+def quantize_tensor(tensor: FTensor, bit_width: int, scale: np.float32, zero_point: np.int64 | None):
     qdata = quantize(tensor.data, bit_width, scale, zero_point)
     return QTensor(qdata, bit_width, scale=scale, zero_point=zero_point)
 
 
 def tensor_min_max(tensor: Tensor):
-    min_val = np.minimum(tensor.data.min(), 0.0)
-    max_val = np.maximum(tensor.data.max(), 0.0)
+    zero_val = np.array(0.0).astype(np.float32)
+    min_val = np.minimum(tensor.data.min(), zero_val)
+    max_val = np.maximum(tensor.data.max(), zero_val)
     return min_val, max_val
 
 

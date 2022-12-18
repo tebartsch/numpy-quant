@@ -168,26 +168,22 @@ class TestMlp(unittest.TestCase):
         qmodel = model.quantize([FTensor(self.X_test)])
         self.assertEqual(
             summarize(qmodel), textwrap.dedent("""\
-                    =================+==========================+=========================
-                    Node             | Inputs                   | Outputs                 
-                    =================+==========================+=========================
-                    input/quantize   | input                    | input/quantize_output_0 
-                    -----------------+--------------------------+-------------------------
-                    /fc1/Gemm        | input/quantize_output_0  | /fc1/Gemm_output_0      
-                                     | fc1.weight               |                         
-                                     | fc1.bias                 |                         
-                    -----------------+--------------------------+-------------------------
-                    /relu/Relu       | /fc1/Gemm_output_0       | /relu/Relu_output_0     
-                    -----------------+--------------------------+-------------------------
-                    /fc2/Gemm        | /relu/Relu_output_0      | /fc2/Gemm_output_0      
-                                     | fc2.weight               |                         
-                                     | fc2.bias                 |                         
-                    -----------------+--------------------------+-------------------------
-                    /sigmoid/Sigmoid | /fc2/Gemm_output_0       | input/dequantize_input_0
-                    -----------------+--------------------------+-------------------------
-                    input/dequantize | input/dequantize_input_0 | output                  
-                    -----------------+--------------------------+-------------------------
-                    """)
+                    =================+=====================+====================
+                    Node             | Inputs              | Outputs            
+                    =================+=====================+====================
+                    /fc1/Gemm        | input               | /fc1/Gemm_output_0 
+                                     | fc1.weight          |                    
+                                     | fc1.bias            |                    
+                    -----------------+---------------------+--------------------
+                    /relu/Relu       | /fc1/Gemm_output_0  | /relu/Relu_output_0
+                    -----------------+---------------------+--------------------
+                    /fc2/Gemm        | /relu/Relu_output_0 | /fc2/Gemm_output_0 
+                                     | fc2.weight          |                    
+                                     | fc2.bias            |                    
+                    -----------------+---------------------+--------------------
+                    /sigmoid/Sigmoid | /fc2/Gemm_output_0  | output             
+                    -----------------+---------------------+--------------------
+                """)
         )
         print(summarize(qmodel))
 

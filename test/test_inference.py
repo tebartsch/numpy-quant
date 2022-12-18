@@ -190,12 +190,13 @@ class TestInference(unittest.TestCase):
         np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?
 
     def test_vit(self):
-        batch_size = 1
+        batch_size = 2
         image_size = 16
         patch_size = 4
         intermediate_size = 22
         hidden_size = 8
         num_attention_heads = 2
+
         onnx_model = onnx_models.vit(batch_size, image_size, patch_size,
                                      intermediate_size, hidden_size, num_attention_heads)
         onnx_bytes = io.BytesIO()

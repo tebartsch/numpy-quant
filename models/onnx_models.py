@@ -322,6 +322,7 @@ def vit_image_classifier():
         f=onnx_bytes,
         input_names=['inputs'],
         output_names=['logits'],
+        dynamic_axes={'inputs': {0: 'B'}},
         do_constant_folding=True,
         opset_version=17,
     )
@@ -350,7 +351,8 @@ if __name__ == "__main__":
               base_path / "test" / "vit_layer.onnx")
     onnx.save(vit_pooler(batch_size=1, image_size=16, patch_size=4, hidden_size=8),
               base_path / "test" / "vit_pooler.onnx")
-    onnx.save(vit(batch_size=1, image_size=16, patch_size=4, intermediate_size=22, hidden_size=8, num_attention_heads=2),
-              base_path / "test" / "vit_image_classifier.onnx")
+    onnx.save(vit(batch_size=2, image_size=16, patch_size=4, intermediate_size=22,
+                  hidden_size=8, num_attention_heads=2),
+              base_path / "test" / "vit.onnx")
 
     onnx.save(vit_image_classifier(), base_path / "vit_image_classifier.onnx")

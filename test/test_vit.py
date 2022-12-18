@@ -1,18 +1,27 @@
 #!/usr/bin/env python
 import io
+import os
 import pathlib
 import unittest
 from time import time
 
+import datasets
 import numpy as np
 import onnx
 import onnx.helper
 import onnxruntime as ort
+from onnxruntime.tools.onnx_model_utils import make_dim_param_fixed
 from datasets import load_dataset
 from transformers import ViTImageProcessor, ViTForImageClassification
 
 from tinyquant.model import Model, Variable
 from tinyquant.tensor import FTensor
+
+
+def copy_onnx_model(model: onnx.ModelProto):
+    onnx_bytes = io.BytesIO()
+    onnx.save(model, onnx_bytes)
+    return onnx.load_from_string(onnx_bytes.getvalue())
 
 
 def compare_all_nodes(onnx_model: onnx.ModelProto, input_data: dict[str, np.ndarray]):
@@ -56,31 +65,40 @@ class TestMlp(unittest.TestCase):
         self.feature_extractor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
         self.torch_model = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
 
+    def test_vit_image_classifier_all_nodes(self):
         dataset = load_dataset("huggingface/cats-image")
         image = dataset["test"]["image"][0]
         inputs_dict = self.feature_extractor(image, return_tensors="pt")
-        self.cat_input_data = inputs_dict['pixel_values'].numpy()
+        cat_input_data = inputs_dict['pixel_values'].numpy()
 
-    def test_vit_image_classifier_all_nodes(self):
-        compare_all_nodes(self.onnx_model, {"inputs": self.cat_input_data})
+        onnx_model = copy_onnx_model(self.onnx_model)
+        make_dim_param_fixed(onnx_model.graph, 'B', 1)
+
+        compare_all_nodes(onnx_model, {"inputs": cat_input_data})
 
     def test_vit_image_classifier_single_image(self):
         print("Preparing")
+        onnx_model = copy_onnx_model(self.onnx_model)
+        make_dim_param_fixed(onnx_model.graph, 'B', 1)
 
+        dataset = load_dataset("huggingface/cats-image")
+        image = dataset["test"]["image"][0]
+        inputs_dict = self.feature_extractor(image, return_tensors="np")
+        cat_input_data = inputs_dict['pixel_values']
         onnx_bytes = io.BytesIO()
-        onnx.save_model(self.onnx_model, onnx_bytes)
+        onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
         startime = time()
-        desired_logits = ort_sess.run(None, {'inputs': self.cat_input_data})[0]
+        desired_logits = ort_sess.run(None, {'inputs': cat_input_data})[0]
         onnx_time = time() - startime
         desired_label = self.torch_model.config.id2label[desired_logits.argmax(axis=-1)[0]]
 
         print("Create Model from ONNX")
-        model = Model.from_onnx(self.onnx_model)
+        model = Model.from_onnx(onnx_model)
 
         print("Run inference")
         startime = time()
-        actual_logits = model([FTensor(self.cat_input_data)])[0].data
+        actual_logits = model([FTensor(cat_input_data)])[0].data
         tinyquant_time = time() - startime
         actual_label = self.torch_model.config.id2label[actual_logits.argmax(axis=-1)[0]]
 
@@ -91,5 +109,54 @@ class TestMlp(unittest.TestCase):
         print(f"Tinyquant Inference Time: {tinyquant_time:.2f}s")
 
     def test_vit_quantization(self):
-        model = Model.from_onnx(self.onnx_model)
-        # qmodel = model.quantize([FTensor(self.cat_input_data)])
+        image_folder = pathlib.Path(__file__).parent / ".." / "test_images" / "vit"
+        os.makedirs(image_folder, exist_ok=True)
+
+        onnx_model = copy_onnx_model(self.onnx_model)
+        make_dim_param_fixed(onnx_model.graph, 'B', 1)
+
+        image_dataset = datasets.load_dataset('Maysee/tiny-imagenet', split='train')
+
+        n_images = 100000  # https://huggingface.co/datasets/Maysee/tiny-imagenet
+        n_use_images = 2
+        step = n_images // n_use_images
+
+        image_list = []
+        label_list = []
+
+        print("Preprocessing Image")
+        for i in range(0, n_images, step):
+            data_dict = image_dataset[i]
+            image = data_dict['image'].convert(mode='RGB')
+            image.save(image_folder / f"{i}.jpg")
+            image_list.append(self.feature_extractor(image, return_tensors="np")['pixel_values'])
+            label_list.append(data_dict['label'])
+
+        inputs = np.concatenate(image_list, axis=0)
+        labels = np.array(label_list, dtype=np.int64)
+
+        print("Create Model from ONNX")
+        model = Model.from_onnx(onnx_model)
+        qmodel = model.quantize([FTensor(inputs)], bit_width=8)
+
+        print("Run float32 inference")
+        startime = time()
+        desired_logits = model([FTensor(inputs)])[0].data
+        float32_time = time() - startime
+        print(f"Float32 Inference Time: {float32_time:.2f}s")
+        del model
+
+        desired_label = self.torch_model.config.id2label[desired_logits.argmax(axis=-1)[0]]
+        print(desired_label)
+
+        print("Run int8 inference")
+        startime = time()
+        actual_logits = qmodel([FTensor(inputs)])[0].data
+        int8_time = time() - startime
+        print(f"Tinyquant Inference Time: {int8_time:.2f}s")
+        del qmodel
+
+        actual_label = self.torch_model.config.id2label[actual_logits.argmax(axis=-1)[0]]
+        print(actual_label)
+
+        self.assertEqual(actual_label, desired_label)
