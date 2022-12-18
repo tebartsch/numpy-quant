@@ -25,7 +25,7 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         rng = np.random.default_rng(0)
-        input_data = rng.normal(size=(k, m))
+        input_data = rng.normal(size=(k, m)).astype(np.float32)
         output = model([FTensor(input_data)])[0]
 
         actual = output.data
@@ -41,8 +41,8 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         rng = np.random.default_rng(0)
-        input_a_data = rng.normal(size=a_shape)
-        input_b_data = rng.normal(size=b_shape)
+        input_a_data = rng.normal(size=a_shape).astype(np.float32)
+        input_b_data = rng.normal(size=b_shape).astype(np.float32)
         output = model([FTensor(input_a_data), FTensor(input_b_data)])[0]
 
         actual = output.data

@@ -15,7 +15,7 @@ class TestQuantization(unittest.TestCase):
         super(TestQuantization, self).__init__(*args, **kwargs)
 
     def test_quantize_tensor(self):
-        x_data = np.array([4.2, 2.1, 4.0]).T
+        x_data = np.array([4.2, 2.1, 4.0], dtype=np.float32).T
         x = FTensor(x_data)
         qx_symmetric = quantize_tensor_min_max(x, bit_width=8, asymmetric=False)
         qx_asymmetric = quantize_tensor_min_max(x, bit_width=8, asymmetric=True)
@@ -38,10 +38,10 @@ class TestQuantization(unittest.TestCase):
             [+1.3, +5.0, -0.3],
             [+2.1, -3.4, -0.1],
             [-0.4, +4.0, +1.7]
-        ])
+        ], dtype=np.float32)
         w = FTensor(w_data)
 
-        x_data = np.array([[2.2], [2.1], [-2.0]])
+        x_data = np.array([[2.2], [2.1], [-2.0]], dtype=np.float32)
         x = FTensor(x_data)
 
         for w_asym, x_asym in [(False, False), (False, True), (True, False), (True, True)]:
@@ -61,9 +61,9 @@ class TestQuantization(unittest.TestCase):
             )
 
         # Test on random data
-        w_data = rng.random((2, 1, 4, 3))
+        w_data = rng.random((2, 1, 4, 3)).astype(np.float32)
         w = FTensor(w_data)
-        x_data = rng.random((1, 2, 3, 4))
+        x_data = rng.random((1, 2, 3, 4)).astype(np.float32)
         x = FTensor(x_data)
 
         for w_asym, x_asym in [(False, False), (False, True), (True, False), (True, True)]:
@@ -86,10 +86,10 @@ class TestQuantization(unittest.TestCase):
             [+1.3, +5.0, -0.3],
             [+2.1, -3.4, -0.1],
             [-0.4, +4.0, +1.7]
-        ])
+        ], dtype=np.float32)
         w = FTensor(w_data)
 
-        x_data = np.array([[2.2], [2.1], [-2.0]])
+        x_data = np.array([[2.2], [2.1], [-2.0]], dtype=np.float32)
         x = FTensor(x_data)
 
         y = w.matmul(x)
@@ -117,9 +117,9 @@ class TestQuantization(unittest.TestCase):
             )
 
         # Test on random data
-        w_data = rng.random((2, 1, 4, 3))
+        w_data = rng.random((2, 1, 4, 3)).astype(np.float32)
         w = FTensor(w_data)
-        x_data = rng.random((1, 2, 3, 4))
+        x_data = rng.random((1, 2, 3, 4)).astype(np.float32)
         x = FTensor(x_data)
         y = w.matmul(x)
 
@@ -152,11 +152,32 @@ class TestQuantization(unittest.TestCase):
         bias_data = onnx.numpy_helper.to_array(initializers["bias"])
 
         model = Model.from_onnx(onnx_model)
-        input_data = rng.normal(size=(k, m))
-        qmodel = model.quantize_model([FTensor(input_data)], bit_width=8)
+        input_data = rng.normal(size=(k, m)).astype(np.float32)
+        qmodel = model.quantize([FTensor(input_data)], bit_width=8)
 
         qoutput = qmodel([FTensor(input_data)])[0]
         actual = qoutput.data
         desired = input_data.dot(weight_data) + bias_data
         mean_diff = np.mean(np.abs(actual - desired)) / (desired.max() - desired.min())
         self.assertLessEqual(mean_diff, 0.2)
+
+    def test_vit_self_attention(self):
+        rng = np.random.default_rng()
+
+        batch_size = 1
+        embeddings_size = 10
+        hidden_size = 16
+        num_attention_heads = 4
+
+        input_data = rng.normal(size=(batch_size, embeddings_size, hidden_size)).astype(np.float32)
+
+        onnx_model = onnx_models.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
+        model = Model.from_onnx(onnx_model)
+        # qmodel = model.quantize([FTensor(input_data)], bit_width=8)
+
+        # actual = qmodel([FTensor(input_data)])[0].data
+        desired = model([FTensor(input_data)])[0].data
+
+        # mean_elem_l2 = np.mean(np.abs(actual - desired))
+        # print(mean_elem_l2)
+

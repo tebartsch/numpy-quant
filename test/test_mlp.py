@@ -165,7 +165,7 @@ class TestMlp(unittest.TestCase):
 
     def test_mlp_quantization(self):
         model = Model.from_onnx(self.onnx_model)
-        qmodel = model.quantize_model([FTensor(self.X_test)])
+        qmodel = model.quantize([FTensor(self.X_test)])
         self.assertEqual(
             summarize(qmodel), textwrap.dedent("""\
                     =================+==========================+=========================
@@ -193,7 +193,7 @@ class TestMlp(unittest.TestCase):
 
     def test_mlp_quantized_inference(self):
         model = Model.from_onnx(self.onnx_model)
-        qmodel = model.quantize_model([FTensor(self.X_test)], bit_width=8)
+        qmodel = model.quantize([FTensor(self.X_test)], bit_width=8)
 
         outputs = model([FTensor(self.X_test)])[0].data
         qoutputs = qmodel([FTensor(self.X_test)])[0].data
@@ -222,7 +222,7 @@ class TestMlp(unittest.TestCase):
         bit_width_list = list(range(1, 17))
         q_acc_list = []
         for bit_width in bit_width_list:
-            qmodel = model.quantize_model([FTensor(self.X_test)], bit_width=bit_width)
+            qmodel = model.quantize([FTensor(self.X_test)], bit_width=bit_width)
             qoutputs = qmodel([FTensor(self.X_test)])[0].data
             q_acc_sum = np.mean(qoutputs.argmax(axis=1) == self.Y_test)
             q_acc_list.append(q_acc_sum)

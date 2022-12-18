@@ -37,6 +37,8 @@ class ITensor:
 
 class FTensor:
     def __init__(self, data: np.ndarray):
+        if not data.dtype == np.float32:
+            raise ValueError("User np.float32 for FTensor")
         self._data = data
 
     @property
@@ -145,6 +147,13 @@ class QTensor:
     def __init__(self, data: np.ndarray[Any, np.int64], bit_width: int,
                  scale: np.float32,
                  zero_point: Optional[Union[np.ndarray[Any, np.int64]]] = None):
+        if data.dtype != np.int64:
+            raise ValueError("Use np.in64 for quantized tensors")
+        if scale.dtype != np.float32:
+            raise ValueError("Use np.float32 for quantized tensors scale")
+        if (zero_point is not None) and (zero_point.dtype != np.int64):
+            raise ValueError("Use np.int64 for quantized zero_point")
+
         self.bit_width = bit_width
         self.scale = scale
         self.zero_point = zero_point
@@ -171,9 +180,9 @@ class QTensor:
 
     def dequantize(self):
         if self.zero_point is None:
-            return FTensor(self._data * self.scale)
+            return FTensor((self._data * self.scale).astype(np.float32))
         else:
-            return FTensor((self._data - self.zero_point) * self.scale)
+            return FTensor(((self._data - self.zero_point) * self.scale).astype(np.float32))
 
     def requantize(self, bit_width: int, scale: np.float32, zero_point: np.int64):
         min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
@@ -219,7 +228,7 @@ class QTensor:
 Tensor = Union[ITensor, FTensor, QTensor]
 
 
-def quantize_tensor(tensor: Tensor, bit_width: int, scale: np.float64, zero_point: np.int64 | None):
+def quantize_tensor(tensor: Tensor, bit_width: int, scale: np.float32, zero_point: np.int64 | None):
     qdata = quantize(tensor.data, bit_width, scale, zero_point)
     return QTensor(qdata, bit_width, scale=scale, zero_point=zero_point)
 

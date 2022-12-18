@@ -89,3 +89,7 @@ class TestMlp(unittest.TestCase):
 
         print(f"ONNX Inference Time: {onnx_time:.2f}s")
         print(f"Tinyquant Inference Time: {tinyquant_time:.2f}s")
+
+    def test_vit_quantization(self):
+        model = Model.from_onnx(self.onnx_model)
+        # qmodel = model.quantize([FTensor(self.cat_input_data)])

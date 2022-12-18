@@ -266,9 +266,11 @@ class Model:
             elif node.op == 'TinyDequantize':
                 x = node.inputs[0].data
                 if 'zero_point' in node.attrs:
-                    y = FTensor((x.data - node.attrs['zero_point']) * node.attrs['scale'])
+                    scaled = (x.data - node.attrs['zero_point']) * node.attrs['scale']
+                    y = FTensor(scaled.astype(np.float32))
                 else:
-                    y = FTensor(x.data * node.attrs['scale'])
+                    scaled = x.data * node.attrs['scale']
+                    y = FTensor(scaled.astype(np.float32))
                 node.outputs[0].data = y
             elif node.op == 'Transpose':
                 x = node.inputs[0].data
@@ -289,14 +291,14 @@ class Model:
 
         return output_tensors
 
-    def quantize_model(self, calibration_inputs: list[Tensor], bit_width=8):
+    def quantize(self, calibration_inputs: list[Tensor], bit_width=8):
         self(calibration_inputs)
         node_dict = {node.name: node for node in self.nodes}
         value_dict = {value.name: value for value in self.values}
         value_data_data_dict = {val.name: val.data.data for val in self.values}
-        value_min_dict = {name: np.mean(data.reshape((data.shape[0], -1)).min())
+        value_min_dict = {name: np.mean(data.reshape((data.shape[0], -1) if data.shape else (-1,)).min())
                           for name, data in value_data_data_dict.items()}
-        value_max_dict = {name: np.mean(data.reshape((data.shape[0], -1)).max())
+        value_max_dict = {name: np.mean(data.reshape((data.shape[0], -1) if data.shape else (-1,)).max())
                           for name, data in value_data_data_dict.items()}
 
         def get_quantization_params(value: Value):
