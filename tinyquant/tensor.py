@@ -45,8 +45,8 @@ class FTensor:
     def __radd__(self, other):
         return self.__add__(other)
 
-    def dot(self, other: 'FTensor'):
-        return FTensor(self.data.dot(other.data))
+    def matmul(self, other: 'FTensor'):
+        return FTensor(np.matmul(self.data, other.data))
 
     def exp(self):
         return FTensor(np.exp(self.data))
@@ -105,32 +105,24 @@ class QTensor:
     def data(self):
         return self._data
 
-    def dot(self, other: 'QTensor'):
+    def matmul(self, other: 'QTensor'):
         s1 = self._data.shape
-        l1 = len(s1)
-        s2 = other._data.shape
-        l2 = len(s2)
-
         assert self.bit_width == other.bit_width, f"{self.bit_width} != {other.bit_width}"
-        dot_product = self._data.astype(np.int64).dot(other._data)
+        matmul = np.matmul(self._data.astype(np.int64), other._data)
         scale = self.scale * other.scale
         if self.zero_point is None and other.zero_point is None:
-            return QTensor(dot_product, 4 * self.bit_width, scale=scale)
+            return QTensor(matmul, 4 * self.bit_width, scale=scale)
         elif self.zero_point is None:
-            return QTensor(dot_product, 4 * self.bit_width, scale=scale,
-                           zero_point=np.expand_dims(self._data.sum(axis=-1), tuple(range(l1 - 1, l1 - 1 + l2 - 1)))
-                                      * other.zero_point)
+            return QTensor(matmul, 4 * self.bit_width, scale=scale,
+                           zero_point=self._data.sum(axis=-1, keepdims=True) * other.zero_point)
         elif other.zero_point is None:
-            return QTensor(dot_product, 4 * self.bit_width, scale=scale,
-                           zero_point=np.expand_dims(other._data.sum(axis=max(-2, -l2)), tuple(range(l2 - 1)))
-                                      * self.zero_point)
+            return QTensor(matmul, 4 * self.bit_width, scale=scale,
+                           zero_point=other._data.sum(axis=-2, keepdims=True) * self.zero_point)
         else:
-            zero_point = (np.expand_dims(self._data.sum(axis=-1), tuple(range(l1 - 1, l1 - 1 + l2 - 1)))
-                          * other.zero_point
-                          + np.expand_dims(other._data.sum(axis=max(-2, -l2)), tuple(range(l2 - 1)))
-                          * self.zero_point
+            zero_point = (self._data.sum(axis=-1, keepdims=True) * other.zero_point
+                          + other._data.sum(axis=-2, keepdims=True) * self.zero_point
                           - self.zero_point * other.zero_point * s1[-1])
-            return QTensor(dot_product, 4 * self.bit_width, scale=scale, zero_point=zero_point)
+            return QTensor(matmul, 4 * self.bit_width, scale=scale, zero_point=zero_point)
 
     def relu(self):
         relu_data = self.data.copy()

@@ -138,11 +138,16 @@ class Model:
                 if 'transB' in node.attrs and node.attrs['transB']:
                     w = w.T
                 if node.op == 'Gemm':
-                    y = x.dot(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
+                    y = x.matmul(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
                 if node.op == 'QGemm':
-                    y = x.dot(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
+                    y = x.matmul(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
                     y = y.requantize(node.attrs['output_bit_width'], node.attrs['output_scale'],
                                      node.attrs['output_zero_point'])
+                node.outputs[0].data = y
+            elif node.op in ['MatMul']:
+                x = node.inputs[0].data
+                w = node.inputs[1].data
+                y = x.matmul(w)
                 node.outputs[0].data = y
             elif node.op == 'Conv':
                 x = node.inputs[0].data

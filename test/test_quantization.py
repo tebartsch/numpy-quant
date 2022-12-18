@@ -32,7 +32,7 @@ class TestQuantization(unittest.TestCase):
             rtol=1e-01,
         )
 
-    def test_quantized_dot(self):
+    def test_quantized_matmul(self):
         rng = np.random.default_rng(0)
 
         # Simple example
@@ -43,22 +43,22 @@ class TestQuantization(unittest.TestCase):
         ])
         w = FTensor(w_data)
 
-        x_data = np.array([2.2, 2.1, -2.0]).T
+        x_data = np.array([[2.2], [2.1], [-2.0]])
         x = FTensor(x_data)
 
         for w_asym, x_asym in [(False, False), (False, True), (True, False), (True, True)]:
             qw = quantize_tensor_min_max(w, bit_width=8, asymmetric=w_asym)
             qx = quantize_tensor_min_max(x, bit_width=8, asymmetric=x_asym)
-            y = qw.dot(qx)
+            y = qw.matmul(qx)
 
             print(f"calculate (w^T)x with 'w asymmetric quant: {w_asym}', 'x asymmetric quant: {x_asym}'")
-            print(" - Actual: ", w_data.dot(x_data))
-            print(" - Expected: ", y.dequantize().data)
-            print(" - Mean Error: ", np.mean(np.abs(y.dequantize().data - w_data.dot(x_data))))
+            print(" - Actual: ", np.matmul(w_data, x_data).flatten())
+            print(" - Expected: ", y.dequantize().data.flatten())
+            print(" - Mean Error: ", np.mean(np.abs(y.dequantize().data - np.matmul(w_data, x_data))))
             print()
             np.testing.assert_allclose(
                 actual=y.dequantize().data,
-                desired=w_data.dot(x_data),
+                desired=np.matmul(w_data, x_data),
                 rtol=0.5,
             )
 
@@ -71,16 +71,16 @@ class TestQuantization(unittest.TestCase):
         for w_asym, x_asym in [(False, False), (False, True), (True, False), (True, True)]:
             qw = quantize_tensor_min_max(w, bit_width=8, asymmetric=w_asym)
             qx = quantize_tensor_min_max(x, bit_width=8, asymmetric=x_asym)
-            y = qw.dot(qx)
+            y = qw.matmul(qx)
             print(f"calculate (w^T)x with 'w asymmetric quant: {w_asym}', 'x asymmetric quant: {x_asym}'")
-            print(" - Mean Error: ", np.mean(np.abs(y.dequantize().data - w_data.dot(x_data))))
+            print(" - Mean Error: ", np.mean(np.abs(y.dequantize().data - np.matmul(w_data, x_data))))
             np.testing.assert_allclose(
                 actual=y.dequantize().data,
-                desired=w_data.dot(x_data),
+                desired=np.matmul(w_data, x_data),
                 rtol=0.5,
             )
 
-    def test_quantized_dot_with_requantize(self):
+    def test_quantized_matmul_with_requantize(self):
         rng = np.random.default_rng(0)
 
         # Simple example
@@ -91,10 +91,10 @@ class TestQuantization(unittest.TestCase):
         ])
         w = FTensor(w_data)
 
-        x_data = np.array([2.2, 2.1, -2.0]).T
+        x_data = np.array([[2.2], [2.1], [-2.0]])
         x = FTensor(x_data)
 
-        y = w.dot(x)
+        y = w.matmul(x)
 
         for w_asym, x_asym, y_asym in itertools.product([False, True], repeat=3):
             qw = quantize_tensor_min_max(w, bit_width=8, asymmetric=w_asym)
@@ -102,14 +102,14 @@ class TestQuantization(unittest.TestCase):
             y_scale, y_zero_point = quant_parameters(*tensor_min_max(y), bit_width=8, asymmetric=True)
             qy = quantize_tensor(y, bit_width=8, scale=y_scale, zero_point=y_zero_point)
 
-            out = qw.dot(qx).requantize(8, y_scale, y_zero_point)
+            out = qw.matmul(qx).requantize(8, y_scale, y_zero_point)
 
             w_asym_str = "asymm" if w_asym else "symm"
             x_asym_str = "asymm" if x_asym else "symm"
             y_asym_str = "asymm" if y_asym else "symm"
             print(f"calculate y=(w^T)x with w {w_asym_str} quant, x {x_asym_str} quant, y {y_asym_str} quant")
-            print(" - Actual: ", out.data)
-            print(" - Expected: ", qy.data)
+            print(" - Actual: ", out.data.flatten())
+            print(" - Expected: ", qy.data.flatten())
             print(" - Mean Relative Error: ", np.mean(np.abs((out.data - qy.data) / out.data)))
             print()
             np.testing.assert_allclose(
@@ -123,7 +123,7 @@ class TestQuantization(unittest.TestCase):
         w = FTensor(w_data)
         x_data = rng.random((1, 2, 3, 4))
         x = FTensor(x_data)
-        y = w.dot(x)
+        y = w.matmul(x)
 
         for w_asym, x_asym, y_asym in itertools.product([False, True], repeat=3):
             qw = quantize_tensor_min_max(w, bit_width=8, asymmetric=w_asym)
@@ -131,7 +131,7 @@ class TestQuantization(unittest.TestCase):
             y_scale, y_zero_point = quant_parameters(*tensor_min_max(y), bit_width=8, asymmetric=True)
             qy = quantize_tensor(y, bit_width=8, scale=y_scale, zero_point=y_zero_point)
 
-            out = qw.dot(qx).requantize(8, y_scale, y_zero_point)
+            out = qw.matmul(qx).requantize(8, y_scale, y_zero_point)
             w_asym_str = "asymm" if w_asym else "symm"
             x_asym_str = "asymm" if x_asym else "symm"
             y_asym_str = "asymm" if y_asym else "symm"

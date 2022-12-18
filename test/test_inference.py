@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-import textwrap
 import unittest
 import numpy as np
 import onnx.numpy_helper
 
 import onnx_models
-from extra.model_summary import summarize
 from tinyquant.model import Model
 from tinyquant.numpy_helper import conv2d
 from tinyquant.tensor import FTensor
@@ -24,25 +22,29 @@ class TestInference(unittest.TestCase):
         bias_data = onnx.numpy_helper.to_array(initializers["bias"])
 
         model = Model.from_onnx(onnx_model)
-
-        self.assertEqual(
-            summarize(model), textwrap.dedent("""\
-            =====+============+============
-            Node | Inputs     | Outputs    
-            =====+============+============
-            Gemm | input_name | output_name
-                 | weight     |            
-                 | bias       |            
-            -----+------------+------------
-            """)
-        )
-
         rng = np.random.default_rng(0)
         input_data = rng.normal(size=(k, m))
         output = model([FTensor(input_data)])[0]
 
         actual = output.data
         desired = input_data.dot(weight_data) + bias_data
+        mean_diff = np.mean(np.abs(actual - desired)) / (desired.max() - desired.min())
+        self.assertLessEqual(mean_diff, 0.2)
+
+    def test_matmul(self):
+        a_shape = (2, 1, 4, 3)
+        b_shape = (1, 3, 3, 5)
+
+        onnx_model = onnx_models.matmul(a_shape, b_shape)
+
+        model = Model.from_onnx(onnx_model)
+        rng = np.random.default_rng(0)
+        input_a_data = rng.normal(size=a_shape)
+        input_b_data = rng.normal(size=b_shape)
+        output = model([FTensor(input_a_data), FTensor(input_b_data)])[0]
+
+        actual = output.data
+        desired = np.matmul(input_a_data, input_b_data)
         mean_diff = np.mean(np.abs(actual - desired)) / (desired.max() - desired.min())
         self.assertLessEqual(mean_diff, 0.2)
 
