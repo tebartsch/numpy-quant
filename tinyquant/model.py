@@ -3,6 +3,7 @@ Represent a neural network imported from ONNX and implement inference.
 """
 from collections import OrderedDict
 from copy import copy
+from time import time
 from typing import List, Any, Union
 import numpy as np
 import onnx
@@ -266,7 +267,9 @@ class Model:
 
         return cls(list(nodes.values()), list(value_dict.values()), inputs, outputs)
 
-    def __call__(self, inputs: List[Tensor]):
+    def __call__(self, inputs: List[Tensor], profile=False):
+
+        time_per_op_types = {op: 0.0 for op in {n.op for n in self.nodes}}
 
         # Set input values
         for tensor, variable in zip(inputs, self.inputs):
@@ -275,7 +278,11 @@ class Model:
         # Iterate through nodes updating all variables in the model.
         for node in self.nodes:
             inputs = [i.data for i in node.inputs]
+
+            stime = time()
             outputs = onnx_operator_implementation(node.op, inputs, node.attrs)
+            time_per_op_types[node.op] += time() - stime
+
             for o, tensor in zip(node.outputs, outputs):
                 o.data = tensor
 
@@ -283,7 +290,11 @@ class Model:
         for out_var in self.outputs:
             output_tensors.append(out_var.data)
 
-        return output_tensors
+        profile_results = time_per_op_types
+        if profile:
+            return output_tensors, profile_results
+        else:
+            return output_tensors
 
     def quantize(self, calibration_inputs: list[Tensor], bit_width=8):
         self(calibration_inputs)
@@ -418,11 +429,15 @@ class QModel(Model):
         self.bit_width = bit_width
         self.quant_params = quant_params
 
-    def __call__(self, inputs: List[Tensor]):
+    def __call__(self, inputs: List[Tensor], profile=False):
         # Set input values
         for tensor, variable in zip(inputs, self.inputs):
             qparams = self.quant_params[variable.name]
             variable.data = quantize_tensor(tensor, self.bit_width, qparams.scale, qparams.zero_point)
+
+        time_per_op_types = {op: 0.0 for op in {n.op for n in self.nodes}}
+        time_per_op_types["TinyqQuant"] = 0.0
+        time_per_op_types["TinyqDequant"] = 0.0
 
         # Iterate through nodes updating all variables in the model.
         for node in self.nodes:
@@ -431,30 +446,42 @@ class QModel(Model):
                 for i in node.inputs:
                     if isinstance(i.data, FTensor):
                         qparams = self.quant_params[i.name]
+
+                        stime = time()
                         req_input = quantize_tensor(i.data, self.bit_width, qparams.scale, qparams.zero_point)
+                        time_per_op_types["TinyqQuant"] += time() - stime
+
                         inputs_data.append(req_input)
                     else:
                         inputs_data.append(i.data)
-                outputs_data = onnx_operator_implementation(node.op, inputs_data, node.attrs)
             elif node.op == "Gemm":
                 inputs_data = []
                 for i in node.inputs:
                     if isinstance(i.data, FTensor):
                         qparams = self.quant_params[i.name]
+
+                        stime = time()
                         req_input = quantize_tensor(i.data, self.bit_width, qparams.scale, qparams.zero_point)
+                        time_per_op_types["TinyqQuant"] += time() - stime
+
                         inputs_data.append(req_input)
                     else:
                         inputs_data.append(i.data)
-                outputs_data = onnx_operator_implementation(node.op, inputs_data, node.attrs)
             else:
                 inputs_data = []
                 for i in node.inputs:
                     if isinstance(i.data, QTensor):
+                        stime = time()
                         deq_input = i.data.dequantize()
+                        time_per_op_types["TinyqDequant"] += time() - stime
+
                         inputs_data.append(deq_input)
                     else:
                         inputs_data.append(i.data)
-                outputs_data = onnx_operator_implementation(node.op, inputs_data, node.attrs)
+
+            stime = time()
+            outputs_data = onnx_operator_implementation(node.op, inputs_data, node.attrs)
+            time_per_op_types[node.op] += time() - stime
 
             for o, tensor in zip(node.outputs, outputs_data):
                 o.data = tensor
@@ -468,4 +495,8 @@ class QModel(Model):
             else:
                 raise ValueError
 
-        return output_tensors
+        profile_results = time_per_op_types
+        if profile:
+            return output_tensors, profile_results
+        else:
+            return output_tensors

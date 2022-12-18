@@ -14,6 +14,7 @@ from onnxruntime.tools.onnx_model_utils import make_dim_param_fixed
 from datasets import load_dataset
 from transformers import ViTImageProcessor, ViTForImageClassification
 
+from extra.evaluate_profile_results import profile_results_plot
 from tinyquant.model import Model, Variable
 from tinyquant.tensor import FTensor
 
@@ -141,7 +142,8 @@ class TestMlp(unittest.TestCase):
 
         print("Run float32 inference")
         startime = time()
-        desired_logits = model([FTensor(inputs)])[0].data
+        outputs, profile_results = model([FTensor(inputs)], profile=True)
+        desired_logits = outputs[0].data
         float32_time = time() - startime
         print(f"Float32 Inference Time: {float32_time:.2f}s")
         del model
@@ -151,7 +153,9 @@ class TestMlp(unittest.TestCase):
 
         print("Run int8 inference")
         startime = time()
-        actual_logits = qmodel([FTensor(inputs)])[0].data
+        outputs, q_profile_results = qmodel([FTensor(inputs)], profile=True)
+        actual_logits = outputs[0].data
+
         int8_time = time() - startime
         print(f"Tinyquant Inference Time: {int8_time:.2f}s")
         del qmodel
@@ -159,4 +163,5 @@ class TestMlp(unittest.TestCase):
         actual_label = self.torch_model.config.id2label[actual_logits.argmax(axis=-1)[0]]
         print(actual_label)
 
+        profile_results_plot(profile_results, q_profile_results)
         self.assertEqual(actual_label, desired_label)

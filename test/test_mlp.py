@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import io
 import unittest
-import pathlib
 import textwrap
 import plotext as plt
 

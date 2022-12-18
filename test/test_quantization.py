@@ -6,7 +6,7 @@ from time import time
 import numpy as np
 import onnx.numpy_helper
 
-from extra.model_summary import summarize
+from extra.evaluate_profile_results import profile_results_plot
 from models import onnx_models
 from tinyquant.model import Model
 from tinyquant.quantize import quant_parameters
@@ -226,16 +226,19 @@ class TestQuantization(unittest.TestCase):
         qmodel = model.quantize([FTensor(input_data)], bit_width=8)
 
         startime = time()
-        desired = model([FTensor(input_data)])[0].data
+        outputs, profile_results = model([FTensor(input_data)], profile=True)
+        desired = outputs[0].data
         float32_time = time() - startime
         startime = time()
-        actual = qmodel([FTensor(input_data)])[0].data
+        outputs, q_profile_results = qmodel([FTensor(input_data)], profile=True)
+        actual = outputs[0].data
         int8_time = time() - startime
 
         mean_elem_l2 = np.mean(np.abs(actual - desired))
-        print(mean_elem_l2)
+        # print("Mean elementwise l2 norm", mean_elem_l2)
         self.assertLessEqual(mean_elem_l2, 0.1)
 
         print(f"ONNX Inference Time: {float32_time:.2f}s")
         print(f"Tinyquant Inference Time: {int8_time:.2f}s")
 
+        profile_results_plot(profile_results, q_profile_results)
