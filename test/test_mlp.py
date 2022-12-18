@@ -221,12 +221,8 @@ class TestMlp(unittest.TestCase):
         bit_width_list = list(range(1, 17))
         q_acc_list = []
         for bit_width in bit_width_list:
-            # Average over some different quantized models
-            n = 10
-            q_acc_sum = 0.0
-            for i in range(n):
-                qmodel = model.quantize_model([FTensor(self.X_test)], bit_width=bit_width)
-                qoutputs = qmodel([FTensor(self.X_test)])[0].data
-                q_acc_sum = np.mean(qoutputs.argmax(axis=1) == self.Y_test)
-            q_acc_list.append(q_acc_sum / n)
+            qmodel = model.quantize_model([FTensor(self.X_test)], bit_width=bit_width)
+            qoutputs = qmodel([FTensor(self.X_test)])[0].data
+            q_acc_sum = np.mean(qoutputs.argmax(axis=1) == self.Y_test)
+            q_acc_list.append(q_acc_sum)
         accuracy_plot(bit_width_list, q_acc_list, title="accuracy", xlabel="bit width")
