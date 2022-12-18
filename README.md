@@ -19,3 +19,7 @@ Quantize ONNX-models with arbitrary bit-width.
 ```bash
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 ```
+
+## Notes
+
+ - `tinyquant` expects ONNX models to not use any dynamic axis

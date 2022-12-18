@@ -9,6 +9,15 @@ from tinyquant import numpy_helper
 from tinyquant.quantize import quant_parameters, quantize
 
 
+class ITensor:
+    def __init__(self, data: np.ndarray):
+        self._data = data
+
+    @property
+    def data(self):
+        return self._data
+
+
 class FTensor:
     def __init__(self, data: np.ndarray):
         self._data = data
@@ -25,8 +34,8 @@ class FTensor:
     def T(self):
         return FTensor(self.data.T)
 
-    def reshape(self, shape: tuple[int, ...]):
-        return FTensor(self.data.reshape(shape))
+    def reshape(self, shape: ITensor):
+        return FTensor(self.data.reshape(shape.data))
 
     def transpose(self, *axes):
         return FTensor(self.data.transpose(*axes))
@@ -48,17 +57,35 @@ class FTensor:
     def matmul(self, other: 'FTensor'):
         return FTensor(np.matmul(self.data, other.data))
 
+    def div(self, other: 'FTensor'):
+        return FTensor(self.data / other.data)
+
     def exp(self):
         return FTensor(np.exp(self.data))
 
     def inv(self):
         return FTensor(1 / self.data)
 
+    def max(self, axis: int, keepdims: bool):
+        return FTensor(self.data.max(axis=axis, keepdims=keepdims))
+
     def relu(self):
         return FTensor((self.data > 0) * self.data)
 
     def sigmoid(self):
         return (1.0 + (-self).exp()).inv()
+
+    def sum(self, axis: int, keepdims: bool):
+        return FTensor(self.data.sum(axis=axis, keepdims=keepdims))
+
+    def _softmax(self):
+        m = self + (-self).max(axis=len(self.shape) - 1, keepdims=True)
+        e = m.exp()
+        return m, e, e.sum(axis=len(self.shape) - 1, keepdims=True)
+
+    def softmax(self):
+        _, e, ss = self._softmax()
+        return e.div(ss)
 
 
 class QTensor:
@@ -136,7 +163,7 @@ class QTensor:
         return QTensor(qactivations, self.bit_width, self.scale, self.zero_point)
 
 
-Tensor = Union[FTensor, QTensor]
+Tensor = Union[ITensor, FTensor, QTensor]
 
 
 def quantize_tensor(tensor: Tensor, bit_width: int, scale: np.float64, zero_point: np.int64 | None):

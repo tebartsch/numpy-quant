@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+import io
 import unittest
 import numpy as np
 import onnx.numpy_helper
+import onnxruntime as ort
 
 import onnx_models
 from tinyquant.model import Model
@@ -69,7 +71,7 @@ class TestInference(unittest.TestCase):
         model = Model.from_onnx(onnx_model)
 
         rng = np.random.default_rng(0)
-        input_data = rng.normal(size=(b, c, *inp_shape))
+        input_data = rng.normal(size=(b, c, *inp_shape)).astype(np.float32)
 
         actual = model([FTensor(input_data)])[0].data
 
@@ -78,4 +80,25 @@ class TestInference(unittest.TestCase):
         desired_t = conv2d(input_data_t, weight_data_t, pads, strides) + bias_data
         desired = desired_t.transpose((0, 3, 1, 2))
 
-        np.testing.assert_allclose(actual, desired)
+        print(np.mean(np.abs(actual.data - desired)))
+        np.testing.assert_equal(actual, desired)
+
+    def test_vit_self_attention(self):
+        batch_size = 1
+        embeddings_size = 10
+        hidden_size = 16
+        num_attention_heads = 4
+        onnx_model = onnx_models.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
+
+        rng = np.random.default_rng()
+
+        model = Model.from_onnx(onnx_model)
+        input_data = rng.normal(size=(batch_size, embeddings_size, hidden_size)).astype(np.float32)
+        actual = model([FTensor(input_data)])[0].data
+
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+        desired = ort_sess.run(None, {'inputs': input_data})[0]
+        print(np.mean(np.abs(actual.data - desired)))
+

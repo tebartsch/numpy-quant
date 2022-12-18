@@ -10,7 +10,7 @@ import onnx.mapping
 import onnx.numpy_helper
 
 from tinyquant.numpy_helper import conv2d
-from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d
+from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d, ITensor
 from tinyquant.quantize import quant_parameters
 
 
@@ -57,8 +57,10 @@ class Node:
 def convert_onnx_dtype_to_numpy_dtype(x):
     np_dtype = onnx.helper.tensor_dtype_to_np_dtype(x.type)
     value = onnx.helper.get_attribute_value(x)
-    return np.array(value
-                    , dtype=np_dtype)
+    if isinstance(value, onnx.TensorProto):
+        return onnx.numpy_helper.to_array(value)
+    else:
+        return value
 
 
 class Model:
@@ -121,13 +123,30 @@ class Model:
 
         # Iterate through nodes updating all variables in the model.
         for node in self.nodes:
-            if node.op == 'Relu':
-                x = node.inputs[0].data
-                y = x.relu()
+            if node.op == 'Add':
+                a = node.inputs[0].data
+                b = node.inputs[1].data
+                y = a + b
                 node.outputs[0].data = y
-            elif node.op == 'Sigmoid':
+            elif node.op == 'Constant':
+                value = node.attrs['value']
+                if value.dtype == np.float32:
+                    node.outputs[0].data = FTensor(value)
+                elif value.dtype == np.int64:
+                    node.outputs[0].data = ITensor(value)
+                else:
+                    cls = value.dtype.__class__
+                    raise ValueError(f"Constant value type {cls.__module__}.{cls.__qualname__} not supported.")
+            elif node.op == 'Conv':
                 x = node.inputs[0].data
-                y = x.sigmoid()
+                w = node.inputs[1].data
+                b = node.inputs[2].data
+                y = fconv2d(x, w, b, tuple(node.attrs['pads']), tuple(node.attrs['strides']))
+                node.outputs[0].data = y
+            elif node.op == 'Div':
+                a = node.inputs[0].data
+                b = node.inputs[1].data
+                y = a.div(b)
                 node.outputs[0].data = y
             elif node.op in ['Gemm', 'QGemm']:
                 x = node.inputs[0].data
@@ -138,22 +157,33 @@ class Model:
                 if 'transB' in node.attrs and node.attrs['transB']:
                     w = w.T
                 if node.op == 'Gemm':
-                    y = x.matmul(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
+                    y = x.matmul(w) + b
                 if node.op == 'QGemm':
-                    y = x.matmul(w) + b.reshape(tuple([1] * (len(w.shape) - 1) + [b.shape[0]]))
+                    y = x.matmul(w) + b
                     y = y.requantize(node.attrs['output_bit_width'], node.attrs['output_scale'],
                                      node.attrs['output_zero_point'])
                 node.outputs[0].data = y
             elif node.op in ['MatMul']:
-                x = node.inputs[0].data
-                w = node.inputs[1].data
-                y = x.matmul(w)
+                a = node.inputs[0].data
+                b = node.inputs[1].data
+                y = a.matmul(b)
                 node.outputs[0].data = y
-            elif node.op == 'Conv':
+            elif node.op == 'Relu':
                 x = node.inputs[0].data
-                w = node.inputs[1].data
-                b = node.inputs[2].data
-                y = fconv2d(x, w, b, tuple(node.attrs['pads']), tuple(node.attrs['strides']))
+                y = x.relu()
+                node.outputs[0].data = y
+            elif node.op == 'Reshape':
+                x = node.inputs[0].data
+                shape = node.inputs[1].data
+                y = x.reshape(shape)
+                node.outputs[0].data = y
+            elif node.op == 'Sigmoid':
+                x = node.inputs[0].data
+                y = x.sigmoid()
+                node.outputs[0].data = y
+            elif node.op == 'Softmax':
+                x = node.inputs[0].data
+                y = x.softmax()
                 node.outputs[0].data = y
             elif node.op == 'TinyQuantize':
                 x = node.inputs[0].data
@@ -165,6 +195,11 @@ class Model:
                     y = FTensor((x.data - node.attrs['zero_point']) * node.attrs['scale'])
                 else:
                     y = FTensor(x.data * node.attrs['scale'])
+                node.outputs[0].data = y
+            elif node.op == 'Transpose':
+                x = node.inputs[0].data
+                axes = node.attrs['perm']
+                y = x.transpose(axes)
                 node.outputs[0].data = y
             else:
                 raise ValueError(f"ONNX operand {node.op} not supported.")

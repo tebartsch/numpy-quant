@@ -1,9 +1,13 @@
+import io
 from itertools import zip_longest
 
 import onnx
 import onnx.shape_inference
 import onnx.numpy_helper
 import numpy as np
+import torch
+from transformers import ViTConfig
+from transformers.models.vit.modeling_vit import ViTSelfAttention
 
 
 def shapes_broadcastable(shape_a: tuple[int, ...], shape_b: tuple[int, ...]):
@@ -144,5 +148,28 @@ def conv(b: int,
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
 
     onnx.checker.check_model(onnx_model)
+
+    return onnx_model
+
+
+def vit_self_attention(batch_size: int, embeddings_size: int, hidden_size: int, num_attention_heads: int):
+    vit_config = ViTConfig(
+        hidden_size=hidden_size,
+        num_attention_heads=num_attention_heads,
+    )
+    pytorch_model = ViTSelfAttention(vit_config)
+
+    onnx_model_bytes = io.BytesIO()
+    torch.onnx.export(
+        pytorch_model,
+        torch.zeros((batch_size, embeddings_size, hidden_size)),
+        f=onnx_model_bytes,
+        input_names=['inputs'],
+        output_names=['hidden_states'],
+        do_constant_folding=True,
+        opset_version=13,
+    )
+    onnx_model = onnx.load_from_string(onnx_model_bytes.getvalue())
+    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
 
     return onnx_model
