@@ -42,9 +42,11 @@ def compare_all_nodes(onnx_model: onnx.ModelProto, input_data: dict[str, np.ndar
         if node.op_type in ["Constant", "ConstantOfShape"]:
             continue
         for output_name in node.output:
-            # mean_element_l1 = np.mean(np.abs(actual[output_name] - desired[output_name]))
-            # print(output_name, mean_element_l1)
-            np.testing.assert_allclose(actual[output_name], desired[output_name], atol=1e-4)
+            mean_element_l1 = np.mean(np.abs(actual[output_name] - desired[output_name]))
+            print(output_name, mean_element_l1)
+            np.testing.assert_almost_equal(mean_element_l1, 0.0, decimal=4,
+                                           err_msg=f"Mean of elementwise l1 norm for "
+                                                   f"{output_name}: {mean_element_l1}")
 
 
 class TestMlp(unittest.TestCase):

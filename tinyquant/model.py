@@ -226,7 +226,7 @@ class Model:
                 node.outputs[0].data = y
             elif node.op == 'ReduceMean':
                 x = node.inputs[0].data
-                node.outputs[0].data = x.mean(node.attrs['axis'])
+                node.outputs[0].data = x.mean(node.attrs['axis'], keepdims=node.attrs['keepdims'])
             elif node.op == 'Relu':
                 x = node.inputs[0].data
                 y = x.relu()

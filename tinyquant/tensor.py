@@ -102,10 +102,10 @@ class FTensor:
         # Adjust numpy broadcast_to function for ONNX expand operator
         # See: https://github.com/onnx/onnx/blob/main/docs/Operators.md#expand
         curr_shape = self.shape.data
-        new_shape = shape.data
+        new_shape = shape.data.copy()
         adjust_loc = np.logical_and(new_shape < curr_shape, new_shape == 1)
         new_shape[adjust_loc] = curr_shape[adjust_loc]
-        return FTensor(np.broadcast_to(self._data, tuple(shape.data)))
+        return FTensor(np.broadcast_to(self._data, tuple(new_shape.data)))
 
     def inv(self):
         return FTensor(1 / self._data)
