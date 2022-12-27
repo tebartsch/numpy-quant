@@ -7,7 +7,7 @@ from torch import Tensor as TorchTensor
 from torch import concat as torch_concat
 from torch.nn.functional import conv2d as torch_conv2d
 
-from tinyquant.numpy_helper import conv2d
+from numpy_quant.numpy_helper import conv2d
 
 
 class TestInference(unittest.TestCase):

@@ -25,8 +25,8 @@ if __name__ == '__main__':
         torch_float32_matB = torch.tensor(float32_matB)
         int8_matA = rng.integers(-2**7, 2**7-1, size=(k, l, n, n), dtype=np.int8)
         int8_matB = rng.integers(-2**7, 2**7-1, size=(k, l, n, n), dtype=np.int8)
-        torch_int8_matA = torch.tensor(int8_matA, dtype=torch.int8)
-        torch_int8_matB = torch.tensor(int8_matB, dtype=torch.int8)
+        torch_int8_matA = torch.tensor(int8_matA, dtype=torch.int64)
+        torch_int8_matB = torch.tensor(int8_matB, dtype=torch.int64)
 
         repetitions = max_size - n + 1
 
@@ -39,11 +39,12 @@ if __name__ == '__main__':
         int8_time[i] = time() - stime
 
         stime = time()
-        np.matmul(float32_matA, float32_matB)
+        torch.matmul(torch_float32_matA, torch_float32_matB)
         torch_float32_time[i] = time() - stime
 
         stime = time()
-        np.matmul(float32_matA, float32_matB)
+        out = torch.zeros((k, l, n, n), dtype=torch.int64)
+        torch.matmul(torch_int8_matA, torch_int8_matB, out=out)
         torch_int8_time[i] = time() - stime
 
     plt.plot_size(100, 10)

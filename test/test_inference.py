@@ -6,9 +6,9 @@ import onnx.numpy_helper
 import onnxruntime as ort
 
 from models import onnx_models
-from tinyquant.model import Model
-from tinyquant.numpy_helper import conv2d
-from tinyquant.tensor import FTensor, ITensor
+from numpy_quant.model import Model
+from numpy_quant.numpy_helper import conv2d
+from numpy_quant.tensor import FTensor, ITensor
 
 
 class TestInference(unittest.TestCase):

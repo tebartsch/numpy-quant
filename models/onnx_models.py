@@ -50,7 +50,7 @@ def gemm(k: int, m: int, n: int, random_seed: int):
         initializer=[weight, bias],
     )
 
-    onnx_model = onnx.helper.make_model(graph_def, producer_name="tinyquant-test")
+    onnx_model = onnx.helper.make_model(graph_def, producer_name="numpy-quant-test")
     onnx_model.opset_import[0].version = 13
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
@@ -89,7 +89,7 @@ def matmul(a_shape: tuple[int, ...], b_shape: tuple[int, ...]):
         outputs=[output],
     )
 
-    onnx_model = onnx.helper.make_model(graph_def, producer_name="tinyquant-test")
+    onnx_model = onnx.helper.make_model(graph_def, producer_name="numpy-quant-test")
     onnx_model.opset_import[0].version = 13
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
@@ -144,7 +144,7 @@ def conv(b: int,
         initializer=[weight, bias],
     )
 
-    onnx_model = onnx.helper.make_model(graph_def, producer_name="tinyquant-test")
+    onnx_model = onnx.helper.make_model(graph_def, producer_name="numpy-quant-test")
     onnx_model.opset_import[0].version = 13
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
@@ -174,7 +174,7 @@ def expand():
         outputs=[output],
     )
 
-    onnx_model = onnx.helper.make_model(graph_def, producer_name="tinyquant-test")
+    onnx_model = onnx.helper.make_model(graph_def, producer_name="numpy-quant-test")
     onnx_model.opset_import[0].version = 13
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)

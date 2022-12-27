@@ -8,9 +8,9 @@ import onnx.numpy_helper
 
 from extra.evaluate_profile_results import profile_results_plot
 from models import onnx_models
-from tinyquant.model import Model
-from tinyquant.quantize import quant_parameters
-from tinyquant.tensor import FTensor, quantize_tensor_min_max, tensor_min_max, quantize_tensor
+from numpy_quant.model import Model
+from numpy_quant.quantize import quant_parameters
+from numpy_quant.tensor import FTensor, quantize_tensor_min_max, tensor_min_max, quantize_tensor
 
 
 def shapes_broadcastable(shape_a: tuple[int, ...], shape_b: tuple[int, ...]):

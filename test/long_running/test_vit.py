@@ -15,8 +15,8 @@ from datasets import load_dataset
 from transformers import ViTImageProcessor, ViTForImageClassification
 
 from extra.evaluate_profile_results import profile_results_plot
-from tinyquant.model import Model, Variable
-from tinyquant.tensor import FTensor
+from numpy_quant.model import Model, Variable
+from numpy_quant.tensor import FTensor
 
 
 def copy_onnx_model(model: onnx.ModelProto):

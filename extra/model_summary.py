@@ -1,4 +1,4 @@
-from tinyquant.model import Model
+from numpy_quant.model import Model
 
 
 def summarize(model: Model):

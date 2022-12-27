@@ -1,9 +1,8 @@
 onnx~=1.13.0
 numpy~=1.23.5
-
-torch~=1.13.0+cpu
-torchvision
-torchaudio
+torch~=1.13.0
+torchvision~=0.14.0
+torchaudio~=0.13.0
 scikit-learn~=1.2.0
 plotext~=5.2.8
 onnxruntime~=1.13.1

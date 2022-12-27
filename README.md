@@ -1,10 +1,10 @@
-# tinyquant
+# numpy-quant
 
 Quantize ONNX-models with arbitrary bit-width.
 
 **Work In Progress**
 
-`tinyquant` aims to
+`numpy-quant` aims to
  
  - allow evaluating neural network quantization methods for arbitrary bit-widths
  - support importing ONNX models
@@ -23,8 +23,9 @@ pip install -r requirements.txt --extra-index-url https://download.pytorch.org/w
 ## Tests
 
 ```bash
-python models/onnx_models.py  # Create onnx models 
-python -m unittest discover -s test -p 'test_*.py'  # Run all test
+python models/onnx_models.py  # Create onnx models
+python -m unittest discover -s test -p 'test_*.py'  # Run fast test
+python -m unittest discover -s test/long_running -p 'test_*.py'  # Run long-running tests (> 1 minute in total)
 ```
 
 ## Notes

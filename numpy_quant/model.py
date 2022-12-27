@@ -10,9 +10,9 @@ import onnx
 import onnx.mapping
 import onnx.numpy_helper
 
-from tinyquant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d, ITensor, concat, where, \
+from numpy_quant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d, ITensor, concat, where, \
     QTensor
-from tinyquant.quantize import quant_parameters
+from numpy_quant.quantize import quant_parameters
 
 
 class Constant:
@@ -56,7 +56,6 @@ class Node:
 
 
 def convert_onnx_dtype_to_numpy_dtype(x):
-    np_dtype = onnx.helper.tensor_dtype_to_np_dtype(x.type)
     value = onnx.helper.get_attribute_value(x)
     if isinstance(value, onnx.TensorProto):
         return onnx.numpy_helper.to_array(value)
@@ -64,7 +63,7 @@ def convert_onnx_dtype_to_numpy_dtype(x):
         return value
 
 
-def onnx_operator_implementation(op: str, inputs: list[Tensor], attrs: dict[str, object]):
+def onnx_operator_implementation(op: str, inputs: list[Tensor], attrs: dict[str, object]) -> list[Tensor]:
     if op == 'Add':
         a = inputs[0]
         b = inputs[1]

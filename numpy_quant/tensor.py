@@ -5,8 +5,8 @@ from typing import Any, Optional, Union
 
 import numpy as np
 
-from tinyquant import numpy_helper
-from tinyquant.quantize import quant_parameters, quantize
+from numpy_quant import numpy_helper
+from numpy_quant.quantize import quant_parameters, quantize
 
 
 class ITensor:
