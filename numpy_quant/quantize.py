@@ -15,7 +15,10 @@ def quant_parameters(min_val: np.float32, max_val: np.float32, bit_width: int, a
         scale = (2 * max(max_val, min_val)) / (max_qval - min_qval)
         zero_point = None
 
-    return np.array(scale, dtype=np.float32), zero_point and np.array(zero_point, dtype=np.int64)
+    scale = np.array(scale, dtype=np.float32)
+    zero_point = zero_point and np.array(zero_point, dtype=np.int64)
+
+    return scale, zero_point
 
 
 def quantize(data: np.ndarray, bit_width: int, scale: np.float64, zero_point: np.int64 | None):
