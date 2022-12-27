@@ -1,5 +1,7 @@
+# Core requirements
 onnx~=1.13.0
 numpy~=1.23.5
+# Test requirements
 torch~=1.13.0
 torchvision~=0.14.0
 torchaudio~=0.13.0
@@ -9,3 +11,5 @@ onnxruntime~=1.13.1
 transformers~=4.25.1
 datasets~=2.7.1
 tqdm~=4.64.1
+# Extra requirements (see "extra" folder)
+matplotlib

@@ -2,6 +2,8 @@ from numpy_quant.model import Model
 
 
 def summarize(model: Model):
+    """Print summary of given model."""
+
     node_names = [node.name for node in model.nodes]
     node_inputs = [node.inputs for node in model.nodes]
     node_outputs = [node.outputs for node in model.nodes]
