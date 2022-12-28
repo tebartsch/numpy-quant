@@ -36,6 +36,88 @@ def get_color_gradient(c1, c2, n):
     return ["#" + "".join([format(int(round(val * 255)), "02x") for val in item]) for item in rgb_colors]
 
 
+def create_np_array_markdown_table(arrays: dict[str, np.ndarray]):
+    table_shape = (max(a.shape[0] for a in arrays.values()),
+                   sum(a.shape[1]+1 for a in arrays.values()) - 1)
+    cell_content_strings = np.full(table_shape, fill_value="", dtype=object)
+    cell_content_lengths = np.zeros(table_shape, dtype=np.int64)
+
+    curr_col = 0
+    for name, arr in arrays.items():
+        for r in range(arr.shape[0]):
+            for c in range(arr.shape[1]):
+                if arr.dtype == np.float32:
+                    string_val = f"{arr[r, c]:.4f}"
+                elif arr.dtype == np.int64:
+                    string_val = f"{arr[r, c]}"
+                else:
+                    raise ValueError(f"Unsupported dtype of np.ndarray: {arr.dtype}")
+                cell_content_strings[r, curr_col + c] = string_val
+                cell_content_lengths[r, curr_col + c] = len(string_val)
+        curr_col += arr.shape[1] + 1
+
+    col_widths = cell_content_lengths.max(axis=0, initial=2)
+    curr_col = 0
+    for name, arr in arrays.items():
+        col_widths[curr_col] = max(col_widths[curr_col], len(name))
+        curr_col += arr.shape[1] + 1
+
+    res = ""
+
+    # Header
+    curr_col = 0
+    res += "|"
+    for name, arr in arrays.items():
+        res += f"{name:>{col_widths[curr_col]}}" + "|"
+        res += "|".join(" " * l for l in col_widths[curr_col+1:curr_col + arr.shape[1] + 1])
+        if arr.shape[1] > 1:
+            res += "|"
+        curr_col += arr.shape[1] + 1
+    res += "\n"
+    # Horizontal Line
+    res += "|:" + ":|:".join("-" * (l-2) for l in col_widths) + ":|\n"
+    # Content
+    for row in cell_content_strings:
+        res += "|" + "|".join(f"{e:>{l}}" for e, l in zip(row, col_widths)) + "|" + "\n"
+
+    return res
+
+
+def create_tensor_quantization_script(arr: np.ndarray, scale: float, zero_point: int):
+    nl = '\n'
+    script = textwrap.dedent(f"""\
+        import numpy as np
+
+        arr = np.array({np.array2string(arr, separator=', ').replace(nl, '')}, dtype=np.float32)
+
+        def quantize(data: np.ndarray, scale: np.float64, zero_point: np.int64, bit_width: int):
+            q_data_float = zero_point + data / scale
+        
+            min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
+            q_data_clipped = np.clip(q_data_float, min_qval, max_qval)
+            q_data = np.array(np.rint(q_data_clipped), dtype=np.int64)
+        
+            return q_data
+            
+        def dequantize(arr: np.ndarray, scale: np.float64, zero_point: np.int64):
+            return ((arr - zero_point) * scale).astype(np.float32)
+        
+        
+        scale = np.array({scale}, np.float32)
+        zero_point = np.array({zero_point}, np.int64)
+        
+        arr_quantized = quantize(arr, scale, zero_point, bit_width=8)
+        arr_round_trip = dequantize(arr_quantized, scale, zero_point)
+        
+        with np.printoptions(precision=4, suppress=True):
+            print(np.array2string(arr))
+            print(np.array2string(arr_quantized))
+            print(np.array2string(arr_round_trip))
+    """)
+
+    return script
+
+
 def create_model_script(fc1_weight: np.ndarray, fc1_bias: np.ndarray,
                         fc2_weight: np.ndarray, fc2_bias: np.ndarray):
     nl = '\n'
@@ -141,16 +223,42 @@ if __name__ == "__main__":
     fc2_weight = model_value_dict["fc2.weight"].data.data
     fc2_bias = model_value_dict["fc2.bias"].data.data
 
+    # Create a simple numpy script quantizing & dequantizing fc1_weight
+    scale, zero_point = 0.04, 0
+    arr = fc1_weight[:, 0:1]
+    tensor_quantization_script = create_tensor_quantization_script(arr, scale, zero_point)
+    print("Tensor quantization Script")
+    print("-" * 100)
+    print(tensor_quantization_script)
+    print("-" * 100)
+    print("Tensor quantization Script output:")
+    print("-" * 100)
+    loc = {}
+    exec(tensor_quantization_script, globals(), loc)
+    quantize = loc["quantize"]
+    dequantize = loc["dequantize"]
+    arr_quantized = quantize(arr, scale, zero_point, bit_width=8)
+    arr_round_trip = dequantize(arr_quantized, scale, zero_point)
+    table = create_np_array_markdown_table({"original": arr,
+                                            "quantized": arr_quantized,
+                                            "round-tripped": arr_round_trip})
+    print(table)
+    print("-" * 100)
+    with open("scripts/tensor_quantization.py", "w") as f:
+        f.write(tensor_quantization_script)
+
     # Create a simple numpy script running the model
-    script = create_model_script(fc1_weight, fc1_bias, fc2_weight, fc2_bias)
-    print("Inference Script")
-    print("-"*100)
-    print(script)
-    print("-"*100)
-    print("Inference Script output:")
-    print("-"*100)
-    exec(script)
-    print("-"*100)
+    float_inference_script = create_model_script(fc1_weight, fc1_bias, fc2_weight, fc2_bias)
+    print("Float inference Script")
+    print("-" * 100)
+    print(float_inference_script)
+    print("-" * 100)
+    print("Float inference Script output:")
+    print("-" * 100)
+    exec(float_inference_script)
+    print("-" * 100)
+    with open("scripts/mlp_float_inference.py", "w") as f:
+        f.write(float_inference_script)
 
     # Visualize Model Prediction
     xmin, xmax = -1.25, 1.25

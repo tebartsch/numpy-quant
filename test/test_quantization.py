@@ -184,6 +184,11 @@ class TestQuantization(unittest.TestCase):
         qoutput = qmodel([FTensor(input_data)])[0]
         actual = qoutput.data
         desired = input_data.dot(weight_data) + bias_data
+
+        # TODO
+        print(actual)
+        print(desired)
+
         mean_elem_l2 = np.mean(np.abs(actual - desired))
         self.assertLessEqual(mean_elem_l2, 0.2)
 

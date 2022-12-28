@@ -198,7 +198,10 @@ class QTensor:
     def requantize(self, bit_width: int, scale: np.float32, zero_point: np.int64):
         min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
         dequant = self.dequantize().data
-        qdata = np.clip(np.rint(zero_point + 1 / scale * dequant), min_qval, max_qval).astype(np.int64)
+        if zero_point is None:
+            qdata = np.clip(np.rint(1 / scale * dequant), min_qval, max_qval).astype(np.int64)
+        else:
+            qdata = np.clip(np.rint(zero_point + 1 / scale * dequant), min_qval, max_qval).astype(np.int64)
         return QTensor(qdata, bit_width, scale, zero_point)
 
     @property

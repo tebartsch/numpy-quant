@@ -458,7 +458,6 @@ class QModel(Model):
                 for i in node.inputs:
                     if isinstance(i.data, FTensor):
                         qparams = self.quant_params[i.name]
-
                         stime = time()
                         req_input = quantize_tensor(i.data, self.bit_width, qparams.scale, qparams.zero_point)
                         time_per_op_types["TinyqQuant"] += time() - stime
@@ -483,7 +482,12 @@ class QModel(Model):
             time_per_op_types[node.op] += time() - stime
 
             for o, tensor in zip(node.outputs, outputs_data):
-                o.data = tensor
+                if node.op == "Gemm":
+                    qparams = self.quant_params[node.outputs[0].name]
+                    requant_data = tensor.requantize(self.bit_width, qparams.scale, qparams.zero_point)
+                    o.data = requant_data
+                else:
+                    o.data = tensor
 
         output_tensors: List[Tensor] = []
         for out_var in self.outputs:
