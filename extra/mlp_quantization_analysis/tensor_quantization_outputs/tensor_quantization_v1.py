@@ -2,7 +2,7 @@ import numpy as np
 
 arr = np.array([[ 4.4037123 ], [-2.9683902 ], [-4.4077654 ], [ 2.3313837 ], [ 0.05330967]], dtype=np.float32)
 
-def quantize(data: np.ndarray, scale: np.float64, zero_point: np.int64, bit_width: int):
+def quantize(data: np.ndarray, scale: float, zero_point: int, bit_width: int):
     q_data = zero_point + data / scale
 
     min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
@@ -13,10 +13,10 @@ def quantize(data: np.ndarray, scale: np.float64, zero_point: np.int64, bit_widt
 
     return q_data_boxed
 
-def dequantize(arr: np.ndarray, scale: np.float64, zero_point: np.int64):
+def dequantize(arr: np.ndarray, scale: float, zero_point: int | np.ndarray):
     return ((arr - zero_point) * scale).astype(np.float32)
 
-
+# We choose scaling parameters which rescale the data approximately to an interval of -128 to 127
 scale = np.array(0.04, np.float32)
 zero_point = np.array(0, np.int64)
 
@@ -27,3 +27,4 @@ with np.printoptions(precision=4, suppress=True):
     print("arr:\n", np.array2string(arr))
     print("arr_quantized:\n", np.array2string(arr_quantized))
     print("arr_round_trip:\n", np.array2string(arr_round_trip))
+    print("round-trip error:\n", np.abs(arr - arr_round_trip))

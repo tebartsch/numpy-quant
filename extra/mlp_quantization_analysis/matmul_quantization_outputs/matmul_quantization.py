@@ -3,7 +3,7 @@ import numpy as np
 x1 = np.array([[-0.68969274,  0.36898366], [ 0.48721004,  0.59565425], [ 0.9734074 , -0.08323386]], dtype=np.float32)
 x2 = np.array([[ 4.4037123 , -2.9683902 , -4.4077654 ,  2.3313837 ,  0.05330967], [-1.0420023 ,  3.5323772 , -1.5059234 ,  4.3279686 , -4.243471  ]], dtype=np.float32)
 
-def quantize(data: np.ndarray, scale: np.float64, zero_point: np.int64, bit_width: int):
+def quantize(data: np.ndarray, scale: float, zero_point: int, bit_width: int):
     q_data = zero_point + data / scale
 
     min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
@@ -14,7 +14,7 @@ def quantize(data: np.ndarray, scale: np.float64, zero_point: np.int64, bit_widt
 
     return q_data_boxed
 
-def dequantize(arr: np.ndarray, scale: np.float64, zero_point: np.int64):
+def dequantize(arr: np.ndarray, scale: float, zero_point: int | np.ndarray):
     return ((arr - zero_point) * scale).astype(np.float32)
 
 def quant_parameters(min_val: np.float32, max_val: np.float32, bit_width: int, asymmetric: bool):
@@ -50,7 +50,7 @@ def requantize(arr: np.ndarray, arr_scale: float, arr_zero_points: np.ndarray,
     return qdata
 
 # Float matrix multiplication
-z_f32 = np.matmul(x1, x2)
+w_f32 = np.matmul(x1, x2)
 
 # Quantize input arrays
 x1_scale, x1_zero_point = quant_parameters(x1.min(), x1.max(), bit_width=8, asymmetric=True)
@@ -63,14 +63,14 @@ x2_quant = quantize(x2, x2_scale, x2_zero_point, bit_width=8)
 y, y_scale, y_zero_points = q_matmul(x1_quant, x1_scale, x1_zero_point, x2_quant, x2_scale, x2_zero_point)
 
 # Requantize to original bit_width, i.e. 8. For that use quantization parameters obtained from `f32_matmul`.
-z_scale, z_zero_point = quant_parameters(z_f32.min(), z_f32.max(), bit_width=8, asymmetric=True)
-z_quant = requantize(y, y_scale, y_zero_points,
-                     z_scale, z_zero_point, bit_width=8)
+w_scale, w_zero_point = quant_parameters(w_f32.min(), w_f32.max(), bit_width=8, asymmetric=True)
+w_quant = requantize(y, y_scale, y_zero_points,
+                     w_scale, w_zero_point, bit_width=8)
 
 # Dequantize result
-z_round_trip = dequantize(z_quant, z_scale, z_zero_point)
+w_round_trip = dequantize(w_quant, w_scale, w_zero_point)
 
 with np.printoptions(precision=4, suppress=True):
-    print("z_f32:\n", np.array2string(z_f32))
-    print("z_round_trip:\n", np.array2string(z_round_trip))
-    print("round-trip error:\n", np.abs(z_f32 - z_round_trip))
+    print("w_f32:\n", np.array2string(w_f32))
+    print("w_round_trip:\n", np.array2string(w_round_trip))
+    print("round-trip error:\n", np.abs(w_f32 - w_round_trip))
