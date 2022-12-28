@@ -12,14 +12,11 @@ from tempfile import NamedTemporaryFile
 import matplotlib
 from matplotlib import font_manager
 from matplotlib.colors import ListedColormap
-from sklearn.datasets import make_circles
-from sklearn.model_selection import train_test_split
 import torch
-from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
 
+from extra.mlp_quantization_analysis.torch_model import get_torch_model
 from numpy_quant.model import Model
-from numpy_quant.tensor import FTensor
 
 
 def get_google_fonts_ttf(weight: int):
@@ -428,59 +425,8 @@ def create_quantized_inference_script(inp: np.ndarray,
     return script
 
 
-class MultiLayerPerceptron(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(MultiLayerPerceptron, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.fc1 = torch.nn.Linear(self.input_size, self.hidden_size, bias=True)
-        self.relu = torch.nn.ReLU()
-        self.fc2 = torch.nn.Linear(self.hidden_size, self.output_size, bias=True)
-        self.sigmoid = torch.nn.Sigmoid()
-
-    def forward(self, x):
-        hidden = self.fc1(x)
-        relu = self.relu(hidden)
-        output = self.fc2(relu)
-        output = self.sigmoid(output)
-        return output
-
-
-if __name__ == "__main__":
-    np.random.seed(0)
-    torch.manual_seed(1)
-
-    print("MLP Dataset")
-    n_samples = 1000
-    X, Y = make_circles(n_samples=n_samples, noise=0.03)
-    X = np.array(X, dtype=np.float32)
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, train_size=0.7, random_state=0)
-    Y_train_one_hot = np.eye(2, dtype=np.float32)[Y_train]  # One-Hot encoding
-    trainset = TensorDataset(torch.tensor(X_train), torch.tensor(Y_train_one_hot))
-    trainloader = DataLoader(trainset, batch_size=1)
-
-    print("MLP Model Creation")
-    torch_model = MultiLayerPerceptron(input_size=X.shape[1], hidden_size=5, output_size=X.shape[1])
-
-    print("MLP Training")
-    optimizer = torch.optim.SGD(torch_model.parameters(), lr=0.2)
-    criterion = torch.nn.CrossEntropyLoss()
-    for epoch in range(10):
-        average_loss = 0.0
-        for i, (x, y) in enumerate(trainloader):
-            optimizer.zero_grad()
-            outputs = torch_model(x)
-            loss = criterion(outputs, y)
-            loss.backward()
-            optimizer.step()
-
-            average_loss += loss.item()
-        average_loss /= len(trainset)
-        test_outputs = torch_model(torch.tensor(X_test, requires_grad=False)).detach().numpy()
-        acc = np.mean(test_outputs.argmax(axis=1) == Y_test)
-        print(f" - Epoch: {epoch:2d}, Mean Accuracy: {acc:.2f}, Average Loss: {average_loss:.2f}")
-
+def get_model():
+    torch_model, X_train, X_test, Y_train, Y_test = get_torch_model()
     print("MLP ONNX export")
     args = torch.Tensor(X_test)
     onnx_model_bytes = io.BytesIO()
@@ -498,6 +444,12 @@ if __name__ == "__main__":
     onnx.checker.check_model(onnx_model)
 
     model = Model.from_onnx(onnx_model)
+
+    return model, X_train, X_test, Y_train, Y_test
+
+
+if __name__ == "__main__":
+    model, X_train, X_test, Y_train, Y_test = get_model()
 
     # Store all tensors of the model
     model_value_dict = {v.name: v for v in model.values}
@@ -641,7 +593,7 @@ if __name__ == "__main__":
     # # Create markdown table of the script's output
     z_f32, z_round_trip = perform_quantized_matmul(x1, True, x2, True, bit_width=8)
     table = create_np_array_markdown_table({"f32 matmul": z_f32,
-                                            "quantized mamtul": z_round_trip,
+                                            "quantized matmul": z_round_trip,
                                             "error": np.abs(z_f32 - z_round_trip)})
     with open("matmul_quantization_outputs/matmul_quantization_output.md", "w") as f:
         f.write(table)
@@ -745,9 +697,12 @@ if __name__ == "__main__":
         ax.set_title("Quantization accuracy drop for varying bit widths")
         ax.set_xlabel("bit width")
         ax.set_ylabel("test accuracy")
-        ax.plot(bit_widths, q_acc_w_asymm_a_asymm, color=main_colors[3], label="asymmetric weights, asymmetric activations")
-        ax.plot(bit_widths, q_acc_w_asymm_a_symm, color=main_colors[2], label="asymmetric weights, symmetric activations")
-        ax.plot(bit_widths, q_acc_w_symm_a_asymm, color=main_colors[1], label="symmetric weights, asymmetric activations")
+        ax.plot(bit_widths, q_acc_w_asymm_a_asymm, color=main_colors[3],
+                label="asymmetric weights, asymmetric activations")
+        ax.plot(bit_widths, q_acc_w_asymm_a_symm, color=main_colors[2],
+                label="asymmetric weights, symmetric activations")
+        ax.plot(bit_widths, q_acc_w_symm_a_asymm, color=main_colors[1],
+                label="symmetric weights, asymmetric activations")
         ax.plot(bit_widths, q_acc_w_symm_a_symm, color=main_colors[0], label="symmetric weights, symmetric activations")
         ax.legend(fontsize=10)
         ax.set_xticks(bit_widths)
@@ -762,9 +717,9 @@ if __name__ == "__main__":
     # Visualize Model Prediction
     def visualize_model_prediction(bit_width: int | None = None):
         xmin, xmax = -1.25, 1.25
-        x = np.linspace(xmin, xmax, 100, dtype=np.float32)
+        x = np.linspace(xmin, xmax, 1000, dtype=np.float32)
         ymin, ymax = -1.25, 1.25
-        y = np.linspace(ymin, ymax, 100, dtype=np.float32)
+        y = np.linspace(ymin, ymax, 1000, dtype=np.float32)
         xv, yv = np.meshgrid(x, y)
         grid_input = np.concatenate((xv.reshape((-1, 1)), yv.reshape((-1, 1))), axis=1)
         # grid_output = _model([FTensor(grid_input)])[0].data
@@ -774,7 +729,7 @@ if __name__ == "__main__":
             grid_output = run_quantized_mlp_inference(grid_input, bit_width=bit_width)[1]
         zv = grid_output[:, 1].reshape((x.shape[0], y.shape[0]))
 
-        fig, ax = plt.subplots(1, 1, tight_layout=True, figsize=(4, 4))
+        fig, ax = plt.subplots(1, 1, tight_layout=True, figsize=(5, 5))
 
         ax.contourf(x, y, zv, cmap=color_gradient_color_map, alpha=0.4)
         n_train = 150
@@ -787,6 +742,7 @@ if __name__ == "__main__":
         ax.set_xticks(xticks, [f"{t:.2f}" for t in xticks])
         yticks = np.linspace(ymin, ymax, 3)
         ax.set_yticks(yticks, [f"{t:.2f}" for t in yticks])
+        ax.set_aspect('equal')
         ax.legend(loc="upper right")
         return fig, ax
 
