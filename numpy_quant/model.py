@@ -12,7 +12,7 @@ import onnx.numpy_helper
 
 from numpy_quant.tensor import Tensor, FTensor, quantize_tensor, quantize_tensor_min_max, fconv2d, ITensor, concat, where, \
     QTensor
-from numpy_quant.quantize import quant_parameters
+from numpy_quant.numpy_quantization import quant_parameters
 
 
 class Constant:

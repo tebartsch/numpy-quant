@@ -9,7 +9,7 @@ import onnx.numpy_helper
 from extra.evaluate_profile_results import profile_results_plot
 from models import onnx_models
 from numpy_quant.model import Model
-from numpy_quant.quantize import quant_parameters
+from numpy_quant.numpy_quantization import quant_parameters
 from numpy_quant.tensor import FTensor, quantize_tensor_min_max, tensor_min_max, quantize_tensor
 
 

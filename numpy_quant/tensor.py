@@ -6,7 +6,7 @@ from typing import Any, Optional, Union
 import numpy as np
 
 from numpy_quant import numpy_helper
-from numpy_quant.quantize import quant_parameters, quantize
+from numpy_quant.numpy_quantization import quant_parameters, quantize, q_matmul, requantize
 
 
 class ITensor:
@@ -147,7 +147,7 @@ class FTensor:
 
     def sqrt(self):
         return FTensor(np.sqrt(self._data))
-    
+
     def tanh(self):
         return FTensor(np.tanh(self._data))
 
@@ -196,12 +196,9 @@ class QTensor:
             return FTensor(((self._data - self.zero_point) * self.scale).astype(np.float32))
 
     def requantize(self, bit_width: int, scale: np.float32, zero_point: np.int64):
-        min_qval, max_qval = -2.0 ** (bit_width - 1), 2.0 ** (bit_width - 1) - 1.0
-        dequant = self.dequantize().data
-        if zero_point is None:
-            qdata = np.clip(np.rint(1 / scale * dequant), min_qval, max_qval).astype(np.int64)
-        else:
-            qdata = np.clip(np.rint(zero_point + 1 / scale * dequant), min_qval, max_qval).astype(np.int64)
+        qdata = requantize(self._data, self.scale, self.zero_point,
+                           res_scale=scale, res_zero_point=zero_point,
+                           bit_width=bit_width)
         return QTensor(qdata, bit_width, scale, zero_point)
 
     @property
@@ -209,23 +206,11 @@ class QTensor:
         return self._data
 
     def matmul(self, other: 'QTensor'):
-        s1 = self._data.shape
         assert self.bit_width == other.bit_width, f"{self.bit_width} != {other.bit_width}"
-        matmul = np.matmul(self._data.astype(np.int64), other._data)
-        scale = self.scale * other.scale
-        if self.zero_point is None and other.zero_point is None:
-            return QTensor(matmul, 4 * self.bit_width, scale=scale)
-        elif self.zero_point is None:
-            return QTensor(matmul, 4 * self.bit_width, scale=scale,
-                           zero_point=self._data.sum(axis=-1, keepdims=True) * other.zero_point)
-        elif other.zero_point is None:
-            return QTensor(matmul, 4 * self.bit_width, scale=scale,
-                           zero_point=other._data.sum(axis=-2, keepdims=True) * self.zero_point)
-        else:
-            zero_point = (self._data.sum(axis=-1, keepdims=True) * other.zero_point
-                          + other._data.sum(axis=-2, keepdims=True) * self.zero_point
-                          - self.zero_point * other.zero_point * s1[-1])
-            return QTensor(matmul, 4 * self.bit_width, scale=scale, zero_point=zero_point)
+        bit_width = self.bit_width
+        y, scale, zero_point = q_matmul(self._data, self.scale, self.zero_point,
+                                        other._data, other.scale, other.zero_point)
+        return QTensor(y, 4 * bit_width, scale, zero_point)
 
     def relu(self):
         relu_data = self._data.copy()
