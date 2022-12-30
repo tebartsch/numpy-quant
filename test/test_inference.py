@@ -5,7 +5,7 @@ import numpy as np
 import onnx.numpy_helper
 import onnxruntime as ort
 
-from models import onnx_models
+import models.test
 from numpy_quant.model import Model
 from numpy_quant.numpy_helper import conv2d
 
@@ -17,7 +17,7 @@ class TestInference(unittest.TestCase):
     def test_gemm(self):
         k, m, n = 3, 4, 2
 
-        onnx_model = onnx_models.gemm(k, m, n, random_seed=0)
+        onnx_model = models.test.gemm(k, m, n, random_seed=0)
         initializers = {i.name: i for i in onnx_model.graph.initializer}
         weight_data = onnx.numpy_helper.to_array(initializers["weight"])
         bias_data = onnx.numpy_helper.to_array(initializers["bias"])
@@ -36,7 +36,7 @@ class TestInference(unittest.TestCase):
         a_shape = (2, 1, 4, 3)
         b_shape = (1, 3, 3, 5)
 
-        onnx_model = onnx_models.matmul(a_shape, b_shape)
+        onnx_model = models.test.matmul(a_shape, b_shape)
 
         model = Model.from_onnx(onnx_model)
         rng = np.random.default_rng(0)
@@ -53,7 +53,7 @@ class TestInference(unittest.TestCase):
         b, c, inp_shape = 2, 3, (9, 10)
         pads = (0, 2, 2, 1)
         strides = (2, 1)
-        onnx_model = onnx_models.conv(
+        onnx_model = models.test.conv(
             b=b,
             c=c,
             inp_shape=inp_shape,
@@ -83,7 +83,7 @@ class TestInference(unittest.TestCase):
         np.testing.assert_equal(actual, desired)
 
     def test_expand(self):
-        onnx_model = onnx_models.expand()
+        onnx_model = models.test.expand()
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
@@ -106,7 +106,7 @@ class TestInference(unittest.TestCase):
         hidden_size = 16
         num_attention_heads = 4
 
-        onnx_model = onnx_models.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
+        onnx_model = models.test.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
@@ -127,7 +127,7 @@ class TestInference(unittest.TestCase):
         image_size = 16
         patch_size = 4
         hidden_size = 8
-        onnx_model = onnx_models.vit_embedding(batch_size, image_size, patch_size, hidden_size)
+        onnx_model = models.test.vit_embedding(batch_size, image_size, patch_size, hidden_size)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
@@ -150,8 +150,8 @@ class TestInference(unittest.TestCase):
         intermediate_size = 22
         hidden_size = 8
         num_attention_heads = 2
-        onnx_model = onnx_models.vit_layer(batch_size, image_size, patch_size, intermediate_size,
-                                           hidden_size, num_attention_heads)
+        onnx_model = models.test.vit_layer(batch_size, image_size, patch_size, intermediate_size,
+                                    hidden_size, num_attention_heads)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
@@ -172,7 +172,7 @@ class TestInference(unittest.TestCase):
         image_size = 16
         patch_size = 4
         hidden_size = 8
-        onnx_model = onnx_models.vit_pooler(batch_size, image_size, patch_size, hidden_size)
+        onnx_model = models.test.vit_pooler(batch_size, image_size, patch_size, hidden_size)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
@@ -196,8 +196,8 @@ class TestInference(unittest.TestCase):
         hidden_size = 8
         num_attention_heads = 2
 
-        onnx_model = onnx_models.vit(batch_size, image_size, patch_size,
-                                     intermediate_size, hidden_size, num_attention_heads)
+        onnx_model = models.test.vit(batch_size, image_size, patch_size,
+                              intermediate_size, hidden_size, num_attention_heads)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())

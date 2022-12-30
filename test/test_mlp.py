@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 import io
+import pathlib
 import unittest
 import textwrap
 import plotext as plt
 
 import numpy as np
 import onnx
+import onnxruntime as ort
 from sklearn.datasets import make_circles
-from sklearn.model_selection import train_test_split
 import torch
-from torch.utils.data import TensorDataset, DataLoader
 
 from numpy_quant.model import Model
 from numpy_quant.tensor import QTensor
@@ -63,63 +63,20 @@ class MultiLayerPerceptron(torch.nn.Module):
         return output
 
 
-print("MLP Dataset")
-n_samples = 1000
-X, Y = make_circles(n_samples=n_samples, noise=0.03)
-X = np.array(X, dtype=np.float32)
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, train_size=0.7, random_state=0)
-Y_train_one_hot = np.eye(2, dtype=np.float32)[Y_train]  # One-Hot encoding
-trainset = TensorDataset(torch.tensor(X_train), torch.tensor(Y_train_one_hot))
-trainloader = DataLoader(trainset, batch_size=1)
-
-dataset_plot(X[:100, :], Y[:100], title="Dataset")
-
-print("MLP Model Creation")
-torch_model = MultiLayerPerceptron(input_size=X.shape[1], hidden_size=10, output_size=X.shape[1])
-
-print("MLP Training")
-optimizer = torch.optim.SGD(torch_model.parameters(), lr=0.2)
-criterion = torch.nn.CrossEntropyLoss()
-for epoch in range(5):
-    average_loss = 0.0
-    for i, (x, y) in enumerate(trainloader):
-        optimizer.zero_grad()
-        outputs = torch_model(x)
-        loss = criterion(outputs, y)
-        loss.backward()
-        optimizer.step()
-
-        average_loss += loss.item()
-    average_loss /= len(trainset)
-    test_outputs = torch_model(torch.tensor(X_test, requires_grad=False)).detach().numpy()
-    acc = np.mean(test_outputs.argmax(axis=1) == Y_test)
-    print(f" - Epoch: {epoch:2d}, Mean Accuracy: {acc:.2f}, Average Loss: {average_loss:.2f}")
-
-
 class TestMlp(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(TestMlp, self).__init__(*args, **kwargs)
 
-        print("MLP ONNX export")
-        args = torch.Tensor(X_test)
-        onnx_model_bytes = io.BytesIO()
-        torch.onnx.export(torch_model,
-                          args,
-                          onnx_model_bytes,
-                          export_params=True,
-                          opset_version=10,
-                          do_constant_folding=True,
-                          input_names=['input'],
-                          output_names=['output'],
-                          dynamic_axes={'input': {0: 'batch_size'},
-                                        'output': {0: 'batch_size'}})
-        onnx_model = onnx.load_from_string(onnx_model_bytes.getvalue())
+        n_samples = 1000
+        X_test, Y_test = make_circles(n_samples=n_samples, noise=0.03)
+        X_test = X_test.astype(np.float32)
+
+        onnx_model = onnx.load(pathlib.Path(__file__).parent / ".." / "models" / "mlp.onnx")
         onnx.checker.check_model(onnx_model)
 
         self.X_test = X_test
         self.Y_test = Y_test
-        self.torch_model = torch_model
         self.onnx_model = onnx_model
 
     def test_mlp_onnx_import(self):
@@ -149,18 +106,22 @@ class TestMlp(unittest.TestCase):
         model = Model.from_onnx(self.onnx_model)
         tinyq_outputs = model([self.X_test])[0]
 
+        onnx_bytes = io.BytesIO()
+        onnx.save_model(self.onnx_model, onnx_bytes)
+        ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
+
         print("Tinyquant Float Inference")
         acc = np.mean(tinyq_outputs.argmax(axis=1) == self.Y_test)
         print(f"  Mean Accuracy: {acc:.2f}")
         print()
 
         actual = tinyq_outputs
-        desired = self.torch_model(torch.tensor(self.X_test, requires_grad=False)).detach().numpy()
+        desired = ort_sess.run(None, {'input': self.X_test})[0]
         print(f"Summed difference pytorch vs. numpy-quant: {np.sum(np.abs(actual - desired))}")
         np.testing.assert_allclose(
             actual=actual,
             desired=desired,
-            rtol=1e-05,
+            rtol=1e-03,
         )
 
     def test_mlp_quantization(self):

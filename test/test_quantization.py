@@ -7,7 +7,7 @@ import numpy as np
 import onnx.numpy_helper
 
 from extra.evaluate_profile_results import profile_results_plot
-from models import onnx_models
+import models.test
 from numpy_quant.model import Model
 from numpy_quant.numpy_quantization import quant_parameters
 from numpy_quant.tensor import FTensor, quantize_tensor_min_max, tensor_min_max, quantize_tensor
@@ -157,7 +157,7 @@ class TestQuantization(unittest.TestCase):
         input_a = rng.normal(size=a_shape).astype(np.float32)
         input_b = rng.normal(size=b_shape).astype(np.float32)
 
-        onnx_model = onnx_models.matmul(a_shape, b_shape)
+        onnx_model = models.test.matmul(a_shape, b_shape)
         model = Model.from_onnx(onnx_model)
         qmodel = model.quantize([input_a, input_b], bit_width=8)
 
@@ -172,7 +172,7 @@ class TestQuantization(unittest.TestCase):
 
         k, m, n = 3, 4, 2
 
-        onnx_model = onnx_models.gemm(k, m, n, random_seed=0)
+        onnx_model = models.test.gemm(k, m, n, random_seed=0)
         initializers = {i.name: i for i in onnx_model.graph.initializer}
         weight_data = onnx.numpy_helper.to_array(initializers["weight"])
         bias_data = onnx.numpy_helper.to_array(initializers["bias"])
@@ -197,7 +197,7 @@ class TestQuantization(unittest.TestCase):
 
         input_data = rng.normal(size=(batch_size, embeddings_size, hidden_size)).astype(np.float32)
 
-        onnx_model = onnx_models.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
+        onnx_model = models.test.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
         model = Model.from_onnx(onnx_model)
         qmodel = model.quantize([input_data], bit_width=8)
 
@@ -220,7 +220,7 @@ class TestQuantization(unittest.TestCase):
 
         input_data = rng.normal(size=(batch_size, 3, image_size, image_size)).astype(np.float32)
 
-        onnx_model = onnx_models.vit(batch_size, image_size, patch_size,
+        onnx_model = models.test.vit(batch_size, image_size, patch_size,
                                      intermediate_size, hidden_size, num_attention_heads)
         model = Model.from_onnx(onnx_model)
         qmodel = model.quantize([input_data], bit_width=8)

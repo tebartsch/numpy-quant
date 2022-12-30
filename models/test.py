@@ -1,16 +1,13 @@
 import io
 import pathlib
-from itertools import zip_longest
 
 import onnx
 import onnx.shape_inference
 import onnx.numpy_helper
 import numpy as np
 import torch
-from datasets import load_dataset
-from transformers import ViTConfig, ViTImageProcessor
-from transformers.models.vit.modeling_vit import ViTSelfAttention, ViTModel, ViTEmbeddings, ViTPooler, ViTLayer, \
-    ViTForImageClassification
+from transformers import ViTConfig
+from transformers.models.vit.modeling_vit import ViTSelfAttention, ViTModel, ViTEmbeddings, ViTPooler, ViTLayer
 
 base_path = pathlib.Path(__file__).parent
 
@@ -308,30 +305,6 @@ def vit(batch_size: int, image_size: int, patch_size: int, intermediate_size: in
     return onnx_model
 
 
-def vit_image_classifier():
-    dataset = load_dataset("huggingface/cats-image")
-    image = dataset["test"]["image"][0]
-    feature_extractor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
-    model = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
-    inputs = feature_extractor(image, return_tensors="pt")
-
-    onnx_bytes = io.BytesIO()
-    torch.onnx.export(
-        model,
-        tuple(inputs.values()),
-        f=onnx_bytes,
-        input_names=['inputs'],
-        output_names=['logits'],
-        dynamic_axes={'inputs': {0: 'B'}},
-        do_constant_folding=True,
-        opset_version=17,
-    )
-    onnx_model = onnx.load_from_string(onnx_bytes.getvalue())
-    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
-
-    return onnx_model
-
-
 if __name__ == "__main__":
     onnx.save(gemm(k=3, m=4, n=2, random_seed=0),
               base_path / "test" / "gemm.onnx")
@@ -354,5 +327,3 @@ if __name__ == "__main__":
     onnx.save(vit(batch_size=2, image_size=16, patch_size=4, intermediate_size=22,
                   hidden_size=8, num_attention_heads=2),
               base_path / "test" / "vit.onnx")
-
-    onnx.save(vit_image_classifier(), base_path / "vit_image_classifier.onnx")

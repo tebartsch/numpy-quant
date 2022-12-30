@@ -57,9 +57,14 @@ print("predictions (int4 quantized model)")
 
 ## Tests
 
+Fast tests
 ```bash
-python models/onnx_models.py  # Create onnx models
-python -m unittest discover -s test -p 'test_*.py'  # Run fast test
+python models/mlp.py   # Create mlp onnx models
+python -m unittest discover -s test -p 'test_*.py' 
+```
+Slow tests
+```
+python models/vit_image_classifier.py   # Create vit onnx models
 python -m unittest discover -s test/long_running -p 'test_*.py'  # Run long-running tests (> 1 minute in total)
 ```
 
