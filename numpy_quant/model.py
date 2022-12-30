@@ -266,13 +266,18 @@ class Model:
 
         return cls(list(nodes.values()), list(value_dict.values()), inputs, outputs)
 
-    def __call__(self, inputs: List[Tensor], profile=False):
+    def __call__(self, inputs: List[np.ndarray], profile=False):
 
         time_per_op_types = {op: 0.0 for op in {n.op for n in self.nodes}}
 
         # Set input values
-        for tensor, variable in zip(inputs, self.inputs):
-            variable.data = tensor
+        for array, variable in zip(inputs, self.inputs):
+            if array.dtype == np.float32:
+                variable.data = FTensor(array)
+            elif array.dtype == np.int64:
+                variable.data = ITensor(array)
+            else:
+                raise ValueError(f"Array dtype {array.dtype} not supported")
 
         # Iterate through nodes updating all variables in the model.
         for node in self.nodes:
@@ -285,9 +290,9 @@ class Model:
             for o, tensor in zip(node.outputs, outputs):
                 o.data = tensor
 
-        output_tensors: List[Tensor] = []
+        output_tensors: List[np.ndarray] = []
         for out_var in self.outputs:
-            output_tensors.append(out_var.data)
+            output_tensors.append(out_var.data.data)
 
         profile_results = time_per_op_types
         if profile:
@@ -295,7 +300,7 @@ class Model:
         else:
             return output_tensors
 
-    def quantize(self, calibration_inputs: list[Tensor], bit_width=8):
+    def quantize(self, calibration_inputs: list[np.ndarray], bit_width=8):
         self(calibration_inputs)
         node_dict = {node.name: node for node in self.nodes}
         value_dict = {value.name: value for value in self.values}
@@ -428,11 +433,16 @@ class QModel(Model):
         self.bit_width = bit_width
         self.quant_params = quant_params
 
-    def __call__(self, inputs: List[Tensor], profile=False):
+    def __call__(self, inputs: List[np.ndarray], profile=False):
         # Set input values
-        for tensor, variable in zip(inputs, self.inputs):
+        for array, variable in zip(inputs, self.inputs):
             qparams = self.quant_params[variable.name]
-            variable.data = quantize_tensor(tensor, self.bit_width, qparams.scale, qparams.zero_point)
+            if array.dtype == np.float32:
+                variable.data = quantize_tensor(FTensor(array), self.bit_width, qparams.scale, qparams.zero_point)
+            elif array.dtype == np.int64:
+                variable.data = ITensor(array)
+            else:
+                raise ValueError(f"Array dtype {array.dtype} not supported")
 
         time_per_op_types = {op: 0.0 for op in {n.op for n in self.nodes}}
         time_per_op_types["TinyqQuant"] = 0.0
@@ -492,9 +502,9 @@ class QModel(Model):
         output_tensors: List[Tensor] = []
         for out_var in self.outputs:
             if isinstance(out_var.data, FTensor):
-                output_tensors.append(out_var.data)
+                output_tensors.append(out_var.data.data)
             elif isinstance(out_var.data, QTensor):
-                output_tensors.append(out_var.data.dequantize())
+                output_tensors.append(out_var.data.dequantize().data)
             else:
                 raise ValueError
 

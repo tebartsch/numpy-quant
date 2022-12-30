@@ -16,7 +16,6 @@ from transformers import ViTImageProcessor, ViTForImageClassification
 
 from extra.evaluate_profile_results import profile_results_plot
 from numpy_quant.model import Model, Variable
-from numpy_quant.tensor import FTensor
 
 
 def copy_onnx_model(model: onnx.ModelProto):
@@ -44,7 +43,7 @@ def compare_all_nodes(onnx_model: onnx.ModelProto, input_data: dict[str, np.ndar
     desired = {name: output for name, output in zip(output_names, outputs)}
 
     model = Model.from_onnx(onnx_model)
-    model(list(FTensor(v) for v in input_data.values()))
+    model(list(input_data.values()))
     actual = {v.name: v.data.data for v in model.values if isinstance(v, Variable)}
 
     assert set(desired) == set(actual), "ONNX model and Tinyquant model should have the same nodes"
@@ -62,7 +61,7 @@ def compare_all_nodes(onnx_model: onnx.ModelProto, input_data: dict[str, np.ndar
 class TestMlp(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestMlp, self).__init__(*args, **kwargs)
-        self.onnx_model = onnx.load(pathlib.Path(__file__).parent / ".." / "models" / "vit_image_classifier.onnx")
+        self.onnx_model = onnx.load(pathlib.Path(__file__).parent / ".." / ".." / "models" / "vit_image_classifier.onnx")
         self.feature_extractor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
         self.torch_model = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
 
@@ -77,7 +76,7 @@ class TestMlp(unittest.TestCase):
 
         compare_all_nodes(onnx_model, {"inputs": cat_input_data})
 
-    def test_vit_image_classifier_single_image(self):
+    def test_vit_image_classifier_float_inference(self):
         print("Preparing")
         onnx_model = copy_onnx_model(self.onnx_model)
         make_dim_param_fixed(onnx_model.graph, 'B', 1)
@@ -99,7 +98,7 @@ class TestMlp(unittest.TestCase):
 
         print("Run inference")
         startime = time()
-        actual_logits = model([FTensor(cat_input_data)])[0].data
+        actual_logits = model([cat_input_data])[0]
         tinyquant_time = time() - startime
         actual_label = self.torch_model.config.id2label[actual_logits.argmax(axis=-1)[0]]
 
@@ -138,12 +137,12 @@ class TestMlp(unittest.TestCase):
 
         print("Create Model from ONNX")
         model = Model.from_onnx(onnx_model)
-        qmodel = model.quantize([FTensor(inputs)], bit_width=8)
+        qmodel = model.quantize([inputs], bit_width=8)
 
         print("Run float32 inference")
         startime = time()
-        outputs, profile_results = model([FTensor(inputs)], profile=True)
-        desired_logits = outputs[0].data
+        outputs, profile_results = model([inputs], profile=True)
+        desired_logits = outputs[0]
         float32_time = time() - startime
         print(f"Float32 Inference Time: {float32_time:.2f}s")
         del model
@@ -153,8 +152,8 @@ class TestMlp(unittest.TestCase):
 
         print("Run int8 inference")
         startime = time()
-        outputs, q_profile_results = qmodel([FTensor(inputs)], profile=True)
-        actual_logits = outputs[0].data
+        outputs, q_profile_results = qmodel([inputs], profile=True)
+        actual_logits = outputs[0]
 
         int8_time = time() - startime
         print(f"Tinyquant Inference Time: {int8_time:.2f}s")

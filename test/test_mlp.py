@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader
 
 from numpy_quant.model import Model
-from numpy_quant.tensor import FTensor, QTensor
+from numpy_quant.tensor import QTensor
 from extra.model_summary import summarize
 
 
@@ -147,7 +147,7 @@ class TestMlp(unittest.TestCase):
 
     def test_mlp_float_inference(self):
         model = Model.from_onnx(self.onnx_model)
-        tinyq_outputs = model([FTensor(self.X_test)])[0].data
+        tinyq_outputs = model([self.X_test])[0]
 
         print("Tinyquant Float Inference")
         acc = np.mean(tinyq_outputs.argmax(axis=1) == self.Y_test)
@@ -165,7 +165,7 @@ class TestMlp(unittest.TestCase):
 
     def test_mlp_quantization(self):
         model = Model.from_onnx(self.onnx_model)
-        qmodel = model.quantize([FTensor(self.X_test)])
+        qmodel = model.quantize([self.X_test])
         self.assertEqual(
             summarize(qmodel), textwrap.dedent("""\
                     =================+=====================+====================
@@ -189,10 +189,10 @@ class TestMlp(unittest.TestCase):
 
     def test_mlp_quantized_inference(self):
         model = Model.from_onnx(self.onnx_model)
-        qmodel = model.quantize([FTensor(self.X_test)], bit_width=8)
+        qmodel = model.quantize([self.X_test], bit_width=8)
 
-        outputs = model([FTensor(self.X_test)])[0].data
-        qoutputs = qmodel([FTensor(self.X_test)])[0].data
+        outputs = model([self.X_test])[0]
+        qoutputs = qmodel([self.X_test])[0]
 
         print("Mean difference of float and dequantized int tensors")
         qmodel_value_dict = {v.name: v for v in qmodel.values}
@@ -218,8 +218,8 @@ class TestMlp(unittest.TestCase):
         bit_width_list = list(range(1, 17))
         q_acc_list = []
         for bit_width in bit_width_list:
-            qmodel = model.quantize([FTensor(self.X_test)], bit_width=bit_width)
-            qoutputs = qmodel([FTensor(self.X_test)])[0].data
+            qmodel = model.quantize([self.X_test], bit_width=bit_width)
+            qoutputs = qmodel([self.X_test])[0]
             q_acc_mean = np.mean(qoutputs.argmax(axis=1) == self.Y_test)
             q_acc_list.append(q_acc_mean)
         accuracy_plot(bit_width_list, q_acc_list, title="accuracy", xlabel="bit width")

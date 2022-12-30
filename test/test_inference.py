@@ -8,7 +8,6 @@ import onnxruntime as ort
 from models import onnx_models
 from numpy_quant.model import Model
 from numpy_quant.numpy_helper import conv2d
-from numpy_quant.tensor import FTensor, ITensor
 
 
 class TestInference(unittest.TestCase):
@@ -26,9 +25,9 @@ class TestInference(unittest.TestCase):
         model = Model.from_onnx(onnx_model)
         rng = np.random.default_rng(0)
         input_data = rng.normal(size=(k, m)).astype(np.float32)
-        output = model([FTensor(input_data)])[0]
+        output = model([input_data])[0]
 
-        actual = output.data
+        actual = output
         desired = input_data.dot(weight_data) + bias_data
         mean_diff = np.mean(np.abs(actual - desired)) / (desired.max() - desired.min())
         self.assertLessEqual(mean_diff, 0.2)
@@ -43,9 +42,9 @@ class TestInference(unittest.TestCase):
         rng = np.random.default_rng(0)
         input_a_data = rng.normal(size=a_shape).astype(np.float32)
         input_b_data = rng.normal(size=b_shape).astype(np.float32)
-        output = model([FTensor(input_a_data), FTensor(input_b_data)])[0]
+        output = model([input_a_data, input_b_data])[0]
 
-        actual = output.data
+        actual = output
         desired = np.matmul(input_a_data, input_b_data)
         mean_diff = np.mean(np.abs(actual - desired)) / (desired.max() - desired.min())
         self.assertLessEqual(mean_diff, 0.2)
@@ -73,7 +72,7 @@ class TestInference(unittest.TestCase):
         rng = np.random.default_rng(0)
         input_data = rng.normal(size=(b, c, *inp_shape)).astype(np.float32)
 
-        actual = model([FTensor(input_data)])[0].data
+        actual = model([input_data])[0]
 
         input_data_t = input_data.transpose((0, 2, 3, 1))
         weight_data_t = weight_data.transpose((2, 3, 1, 0))
@@ -96,7 +95,7 @@ class TestInference(unittest.TestCase):
 
         desired = ort_sess.run(None, {'input': input_data,
                                       'shape': shape_data})[0]
-        actual = model([FTensor(input_data), ITensor(shape_data)])[0].data
+        actual = model([input_data, shape_data])[0]
 
         # print(np.mean(np.abs(actual - desired)))
         np.testing.assert_equal(actual, desired)
@@ -116,7 +115,7 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         input_data = rng.normal(size=(batch_size, embeddings_size, hidden_size)).astype(np.float32)
-        actual = model([FTensor(input_data)])[0].data
+        actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
 
@@ -137,7 +136,7 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         input_data = rng.normal(size=(batch_size, 3, image_size, image_size)).astype(np.float32)
-        actual = model([FTensor(input_data)])[0].data
+        actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
 
@@ -161,7 +160,7 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         input_data = rng.normal(size=(batch_size, (image_size // patch_size)**2 + 1, hidden_size)).astype(np.float32)
-        actual = model([FTensor(input_data)])[0].data
+        actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
 
@@ -182,7 +181,7 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         input_data = rng.normal(size=(batch_size, (image_size // patch_size)**2 + 1, hidden_size)).astype(np.float32)
-        actual = model([FTensor(input_data)])[0].data
+        actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
 
@@ -207,7 +206,7 @@ class TestInference(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         input_data = rng.normal(size=(batch_size, 3, image_size, image_size)).astype(np.float32)
-        actual = model([FTensor(input_data)])[0].data
+        actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
 

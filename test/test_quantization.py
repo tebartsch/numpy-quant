@@ -159,10 +159,10 @@ class TestQuantization(unittest.TestCase):
 
         onnx_model = onnx_models.matmul(a_shape, b_shape)
         model = Model.from_onnx(onnx_model)
-        qmodel = model.quantize([FTensor(input_a), FTensor(input_b)], bit_width=8)
+        qmodel = model.quantize([input_a, input_b], bit_width=8)
 
-        actual = qmodel([FTensor(input_a), FTensor(input_b)])[0].data
-        desired = model([FTensor(input_a), FTensor(input_b)])[0].data
+        actual = qmodel([input_a, input_b])[0]
+        desired = model([input_a, input_b])[0]
 
         mean_elem_l2 = np.mean(np.abs(actual - desired))
         self.assertLessEqual(mean_elem_l2, 0.2)
@@ -179,15 +179,10 @@ class TestQuantization(unittest.TestCase):
 
         model = Model.from_onnx(onnx_model)
         input_data = rng.normal(size=(k, m)).astype(np.float32)
-        qmodel = model.quantize([FTensor(input_data)], bit_width=8)
+        qmodel = model.quantize([input_data], bit_width=8)
 
-        qoutput = qmodel([FTensor(input_data)])[0]
-        actual = qoutput.data
+        actual = qmodel([input_data])[0]
         desired = input_data.dot(weight_data) + bias_data
-
-        # TODO
-        print(actual)
-        print(desired)
 
         mean_elem_l2 = np.mean(np.abs(actual - desired))
         self.assertLessEqual(mean_elem_l2, 0.2)
@@ -204,10 +199,10 @@ class TestQuantization(unittest.TestCase):
 
         onnx_model = onnx_models.vit_self_attention(batch_size, embeddings_size, hidden_size, num_attention_heads)
         model = Model.from_onnx(onnx_model)
-        qmodel = model.quantize([FTensor(input_data)], bit_width=8)
+        qmodel = model.quantize([input_data], bit_width=8)
 
-        actual = qmodel([FTensor(input_data)])[0].data
-        desired = model([FTensor(input_data)])[0].data
+        actual = qmodel([input_data])[0]
+        desired = model([input_data])[0]
 
         mean_elem_l2 = np.mean(np.abs(actual - desired))
         # print(mean_elem_l2)
@@ -228,15 +223,15 @@ class TestQuantization(unittest.TestCase):
         onnx_model = onnx_models.vit(batch_size, image_size, patch_size,
                                      intermediate_size, hidden_size, num_attention_heads)
         model = Model.from_onnx(onnx_model)
-        qmodel = model.quantize([FTensor(input_data)], bit_width=8)
+        qmodel = model.quantize([input_data], bit_width=8)
 
         startime = time()
-        outputs, profile_results = model([FTensor(input_data)], profile=True)
-        desired = outputs[0].data
+        outputs, profile_results = model([input_data], profile=True)
+        desired = outputs[0]
         float32_time = time() - startime
         startime = time()
-        outputs, q_profile_results = qmodel([FTensor(input_data)], profile=True)
-        actual = outputs[0].data
+        outputs, q_profile_results = qmodel([input_data], profile=True)
+        actual = outputs[0]
         int8_time = time() - startime
 
         mean_elem_l2 = np.mean(np.abs(actual - desired))

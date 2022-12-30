@@ -20,6 +20,41 @@ Quantize ONNX-models with arbitrary bit-width.
 pip install . --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
+## Getting started
+
+Install numpy-quant
+
+```bash
+git clone https://github.com/tebartsch/numpy-quant
+(cd numpy-quant; pip install .)
+pip install scikit-learn==1.2.0
+```
+
+then run
+
+```python
+import numpy as np
+from numpy_quant.model import Model
+import onnx
+from sklearn.datasets import make_circles
+
+onnx_model = onnx.load("models/mlp.onnx")
+
+X_calibration, _ = make_circles(n_samples=100, noise=0.03)
+X_calibration = X_calibration.astype(np.float32)
+X_test, Y_test = make_circles(n_samples=5, noise=0.03)
+X_test = X_test.astype(np.float32)
+
+model = Model.from_onnx(onnx_model)
+qmodel = model.quantize([X_calibration], bit_width=4)
+
+print("labels")
+print(Y_test)
+print("predictions (float32 model)")
+print(model([X_test])[0].argmax(axis=1))
+print("predictions (int4 quantized model)")
+```
+
 ## Tests
 
 ```bash
