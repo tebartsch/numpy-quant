@@ -153,15 +153,12 @@ class FTensor:
 
 
 class QTensor:
-    def __init__(self, data: np.ndarray[Any, np.int64], bit_width: int,
-                 scale: np.float32,
-                 zero_point: Optional[Union[np.ndarray[Any, np.int64]]] = None):
+    def __init__(self, data: np.ndarray[Any, np.int64], bit_width: int, scale: np.float32,
+                 zero_point: Optional[np.ndarray[Any, np.int64]] = None):
         if data.dtype != np.int64:
-            raise ValueError("Use np.in64 for quantized tensors")
-        if scale.dtype != np.float32:
-            raise ValueError("Use np.float32 for quantized tensors scale")
+            raise ValueError("Use np.int64 for quantized tensors")
         if (zero_point is not None) and (zero_point.dtype != np.int64):
-            raise ValueError("Use np.int64 for quantized zero_point")
+            raise ValueError("Use np.int64 for zero_point of quantized tensors")
 
         self.bit_width = bit_width
         self.scale = scale
