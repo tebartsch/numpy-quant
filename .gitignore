@@ -2,6 +2,7 @@
 venv
 build
 *.onnx
+*.data
 __pycache__
 *.pyc
 test_images

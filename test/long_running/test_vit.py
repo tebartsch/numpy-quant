@@ -61,7 +61,8 @@ def compare_all_nodes(onnx_model: onnx.ModelProto, input_data: dict[str, np.ndar
 class TestMlp(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestMlp, self).__init__(*args, **kwargs)
-        self.onnx_model = onnx.load(pathlib.Path(__file__).parent / ".." / ".." / "models" / "vit_image_classifier.onnx")
+        self.onnx_model = onnx.load(pathlib.Path(__file__).parent / ".." / ".." /
+                                    "models" / "vit" / "vit_image_classifier.onnx")
         self.feature_extractor = ViTImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
         self.torch_model = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
 

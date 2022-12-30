@@ -151,7 +151,7 @@ class TestInference(unittest.TestCase):
         hidden_size = 8
         num_attention_heads = 2
         onnx_model = models.test.vit_layer(batch_size, image_size, patch_size, intermediate_size,
-                                    hidden_size, num_attention_heads)
+                                           hidden_size, num_attention_heads)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
@@ -159,7 +159,7 @@ class TestInference(unittest.TestCase):
         rng = np.random.default_rng()
 
         model = Model.from_onnx(onnx_model)
-        input_data = rng.normal(size=(batch_size, (image_size // patch_size)**2 + 1, hidden_size)).astype(np.float32)
+        input_data = rng.normal(size=(batch_size, (image_size // patch_size) ** 2 + 1, hidden_size)).astype(np.float32)
         actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
@@ -180,7 +180,7 @@ class TestInference(unittest.TestCase):
         rng = np.random.default_rng()
 
         model = Model.from_onnx(onnx_model)
-        input_data = rng.normal(size=(batch_size, (image_size // patch_size)**2 + 1, hidden_size)).astype(np.float32)
+        input_data = rng.normal(size=(batch_size, (image_size // patch_size) ** 2 + 1, hidden_size)).astype(np.float32)
         actual = model([input_data])[0]
 
         desired = ort_sess.run(None, {'inputs': input_data})[0]
@@ -197,7 +197,7 @@ class TestInference(unittest.TestCase):
         num_attention_heads = 2
 
         onnx_model = models.test.vit(batch_size, image_size, patch_size,
-                              intermediate_size, hidden_size, num_attention_heads)
+                                     intermediate_size, hidden_size, num_attention_heads)
         onnx_bytes = io.BytesIO()
         onnx.save_model(onnx_model, onnx_bytes)
         ort_sess = ort.InferenceSession(onnx_bytes.getvalue())
