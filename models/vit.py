@@ -7,7 +7,7 @@ import torch
 from datasets import load_dataset
 from transformers import ViTImageProcessor, ViTForImageClassification
 
-from test import vit_self_attention
+from test import vit_self_attention, vit_layer
 
 base_path = pathlib.Path(__file__).parent
 
@@ -22,6 +22,18 @@ def vit_image_classifier_self_attention():
                                     embeddings_size,
                                     vit_config.hidden_size,
                                     vit_config.num_attention_heads)
+    return onnx_model
+
+
+def vit_image_classifier_encoder_layer():
+    torch_vit_image_classifier = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
+    vit_config = torch_vit_image_classifier.vit.config
+    onnx_model = vit_layer(1,
+                           vit_config.image_size,
+                           vit_config.patch_size,
+                           vit_config.intermediate_size,
+                           vit_config.hidden_size,
+                           vit_config.num_attention_heads)
     return onnx_model
 
 
@@ -60,11 +72,15 @@ if __name__ == "__main__":
               base_path / "vit" / "vit_image_classifier.onnx",
               location=base_path / "vit" / "vit_image_classifier")
     # Store onnx files without weights to view them with netron
-    onnx.save(vit_image_classifier(batch_axis_dynamic=False),
-              base_path / "vit" / "vit_image_classifier_no_weights.onnx",
-              location=base_path / "vit" / "vit_image_classifier_no_weights.data",
-              save_as_external_data=True)
     onnx.save(vit_image_classifier_self_attention(),
               base_path / "vit" / "vit_image_classifier_self_attention_no_weights.onnx",
               location=base_path / "vit" / "vit_image_classifier_self_attention_no_weights.data",
+              save_as_external_data=True)
+    onnx.save(vit_image_classifier_encoder_layer(),
+              base_path / "vit" / "vit_image_classifier_encoder_layer_no_weights.onnx",
+              location=base_path / "vit" / "vit_image_classifier_encoder_layer_no_weights.data",
+              save_as_external_data=True)
+    onnx.save(vit_image_classifier(batch_axis_dynamic=False),
+              base_path / "vit" / "vit_image_classifier_no_weights.onnx",
+              location=base_path / "vit" / "vit_image_classifier_no_weights.data",
               save_as_external_data=True)
