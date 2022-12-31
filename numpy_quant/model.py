@@ -2,7 +2,6 @@
 Represent a neural network imported from ONNX and implement inference.
 """
 from collections import OrderedDict
-from copy import copy
 from time import time
 from typing import List, Any, Union
 import numpy as np
@@ -221,6 +220,19 @@ class Model:
         self.inputs = inputs
         self.outputs = outputs
 
+    def __repr__(self):
+        return f"Model(nodes={self.nodes}, values={self.values}, inputs={self.inputs}, outputs={self.values})"
+    
+    def __str__(self):
+        res = f"Model(\n"
+        for k, v in self.__dict__.items():
+            res += f"  {k}=[\n"
+            for e in v:
+                res += f"    {e}\n"
+            res += f"  ],\n"
+        res += f")\n"
+        return res
+
     @classmethod
     def from_onnx(cls, onnx_model: onnx.ModelProto):
         graph = onnx_model.graph
@@ -422,6 +434,9 @@ class QuantizationParams:
         self.scale = scale
         self.zero_point = zero_point
 
+    def __repr__(self):
+        return f"QuantizationParams(scale={self.scale}, zero_point={self.zero_point})"
+
 
 class QModel(Model):
     def __init__(self, nodes: list[Node], values: list[Value], inputs: List[Variable], outputs: List[Variable],
@@ -432,6 +447,28 @@ class QModel(Model):
         super(QModel, self).__init__(nodes, values, inputs, outputs)
         self.bit_width = bit_width
         self.quant_params = quant_params
+
+    def __repr__(self):
+        return (f"QModel(nodes={self.nodes}, values={self.values}, inputs={self.inputs}, outputs={self.values}, "
+                f"bit_width={self.bit_width}, quant_params={self.quant_params})")
+
+    def __str__(self):
+        res = f"QModel(\n"
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                res += f"  {k}=[\n"
+                for e in v:
+                    res += f"    {e}\n"
+                res += f"  ],\n"
+            if isinstance(v, dict):
+                res += f"  {k}={{\n"
+                for ek, ev in v.items():
+                    res += f"    {ek}: {ev},\n"
+                res += f"  }},\n"
+            else:
+                res += f"  {k}={v},\n"
+        res += f")\n"
+        return res
 
     def __call__(self, inputs: List[np.ndarray], profile=False):
         # Set input values
