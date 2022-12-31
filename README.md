@@ -22,11 +22,12 @@ pip install . --extra-index-url https://download.pytorch.org/whl/cpu
 
 ## Getting started
 
-Install numpy-quant
+Clone numpy-quant, install and switch to folder
 
 ```bash
 git clone https://github.com/tebartsch/numpy-quant
-(cd numpy-quant; pip install .)
+cd numpy-quant
+pip install .
 pip install scikit-learn==1.2.0
 ```
 
