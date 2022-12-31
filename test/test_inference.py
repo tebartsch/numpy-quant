@@ -117,7 +117,7 @@ class TestInference(unittest.TestCase):
         input_data = rng.normal(size=(batch_size, embeddings_size, hidden_size)).astype(np.float32)
         actual = model([input_data])[0]
 
-        desired = ort_sess.run(None, {'inputs': input_data})[0]
+        desired = ort_sess.run(None, {'input_states': input_data})[0]
 
         # print(np.mean(np.abs(actual - desired)))
         np.testing.assert_allclose(actual, desired, atol=1e-6)  # TODO Why is it not exactly equal?

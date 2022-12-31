@@ -215,7 +215,7 @@ def onnx_operator_implementation(op: str, inputs: list[Tensor], attrs: dict[str,
 
 
 class Model:
-    def __init__(self, nodes: list[Node], values: list[Value], inputs: List[Value], outputs: List[Value]):
+    def __init__(self, nodes: list[Node], values: list[Value], inputs: List[Variable], outputs: List[Variable]):
         self.nodes = nodes
         self.values = values
         self.inputs = inputs
@@ -424,7 +424,7 @@ class QuantizationParams:
 
 
 class QModel(Model):
-    def __init__(self, nodes: list[Node], values: list[Value], inputs: List[Value], outputs: List[Value],
+    def __init__(self, nodes: list[Node], values: list[Value], inputs: List[Variable], outputs: List[Variable],
                  bit_width: int, quant_params: dict[str, QuantizationParams]):
         """
         quant_params: value name -> quantization parameter
