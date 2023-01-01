@@ -234,8 +234,9 @@ class Model:
         return res
 
     def __del__(self):
-        """Remove all connections between nodes and values in order to make the garbage collector
-        remove the nodes and tensors of this Model
+        """Remove all connections between nodes and values. This way the reference count of the objects is decreased
+        to zero resulting in the deletion of the possible large numpy arrays stored in the values without relying
+        on the garbage collector.
         """
         for node in self.nodes:
             node.inputs = []
