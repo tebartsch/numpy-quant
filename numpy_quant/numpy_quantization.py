@@ -44,7 +44,7 @@ def dequantize(arr: np.ndarray, scale: float, zero_point: np.int64 | np.ndarray)
 def q_matmul(arr_a: np.ndarray, scale_a: float, zero_point_a: int,
              arr_b: np.ndarray, scale_b: float, zero_point_b: int):
     s1 = arr_a.shape
-    matmul = np.matmul(arr_a.astype(np.int64), arr_b)
+    matmul = np.rint(np.matmul(arr_a.astype(np.float64), arr_b.astype(np.float64))).astype(np.int64)
     scale = scale_a * scale_b
     if zero_point_a is None and zero_point_b is None:
         return matmul, scale, None
