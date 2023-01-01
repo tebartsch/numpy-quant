@@ -233,6 +233,18 @@ class Model:
         res += f")\n"
         return res
 
+    def __del__(self):
+        """Remove all connections between nodes and values in order to make the garbage collector
+        remove the nodes and tensors of this Model
+        """
+        for node in self.nodes:
+            node.inputs = []
+            node.outputs = []
+        for value in self.values:
+            if isinstance(value, Variable):
+                value.inputs = []
+            value.outputs = []
+
     @classmethod
     def from_onnx(cls, onnx_model: onnx.ModelProto):
         graph = onnx_model.graph
@@ -285,9 +297,9 @@ class Model:
         # Set input values
         for array, variable in zip(inputs, self.inputs):
             if array.dtype == np.float32:
-                variable.data = FTensor(array)
+                variable.data = FTensor(array.copy())
             elif array.dtype == np.int64:
-                variable.data = ITensor(array)
+                variable.data = ITensor(array.copy())
             else:
                 raise ValueError(f"Array dtype {array.dtype} not supported")
 
