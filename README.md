@@ -65,7 +65,7 @@ python -m unittest discover -s test -p 'test_*.py'
 ```
 Slow tests
 ```
-python models/vit_image_classifier.py   # Create vit onnx models
+python models/vit.py   # Create vit onnx models
 python -m unittest discover -s test/long_running -p 'test_*.py'  # Run long-running tests (> 1 minute in total)
 ```
 
