@@ -2,6 +2,8 @@
 
 Quantize ONNX-models with arbitrary bit-width.
 
+See [this](https://tebartsch.ai/blog/Quantizing-Transformers.html) blog post about this project.
+
 **Work In Progress**
 
 `numpy-quant` aims to
